@@ -12,10 +12,9 @@
   <img src="https://img.shields.io/badge/tools-21-green" alt="21 tools" />
 </p>
 
-<p align="center"><b>Give any AI coding agent X-ray vision into any software.</b></p>
+<p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
 
-<p align="center">Point Claude Code, Codex, or Cursor at a URL, an API, a codebase, or a shipped<br/>binary — get back a <b>reconstruction blueprint</b> where every claim traces to evidence.</p>
-
+<p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>get back a reconstruction blueprint where every claim traces to evidence.
 OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL, an
 API doc, a codebase, or a shipped binary/APK and it runs an autonomous recon
 pipeline: rapid fingerprinting, a real headless browser that crawls routes,
@@ -33,22 +32,18 @@ other MCP-compatible agent or IDE.
 ```
 
 ```jsonc
-// Claude Code — then just ask your agent to reverse-engineer anything
+// Claude Code — then ask your agent to reverse-engineer a target
 { "mcpServers": { "omnirecon": {
   "command": "/path/to/omnirecon/.venv/bin/python",
   "args": ["-m", "omnirecon.server"] } } }
 ```
-
-> *"Reverse-engineer stripe.com's checkout flow and give me a rebuild plan."*
-> Your agent now has 21 tools, an evidence ledger that never invents data, and
-> a 15-section blueprint generator. That's the whole pitch.
 
 ---
 
 ## Table of contents
 
 - [How it works](#how-it-works)
-- [Why it's different](#why-its-different)
+- [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
 - [The 21 tools](#the-21-tools)
 - [Installation](#installation)
@@ -87,19 +82,17 @@ Target URL / repo path
 Sessions persist on disk, so an agent can pause, resume (`recon_status`), run
 long crawls in the background, or cancel (`recon_cancel`).
 
-## Why it's different
+## Comparison with alternatives
 
-Inspired by [REA](https://github.com/morluto/rea) (`morluto/rea`) — its
-honesty-first evidence model, secret redaction, and CLI/MCP parity are adopted
-here. Where REA is the authority on *deep binary decompilation* (Ghidra/Hopper/
-IDA-backed, deliberately passive on the web), OmniRecon *drives*: it autonomously
-crawls, interacts with, and instruments **live web platforms**, then writes the
-blueprint to rebuild them. Since v1.31 it is a **universal front door**: web
-URLs, OpenAPI documents, repos, and shipped artifacts (APK/IPA/binaries/JS
-bundles) all enter through `recon_start` and are routed to the right engine —
-with a live REA bridge fusing deep decompilation results into the same evidence
-ledger when REA is installed with a configured provider. Full analysis in
-[`REA_INSPECTION.md`](REA_INSPECTION.md).
+OmniRecon adopts REA's honesty-first evidence model, secret redaction, and
+CLI/MCP parity ([full analysis](REA_INSPECTION.md)). The tools differ in
+scope: REA is the authority on deep binary decompilation (Ghidra/Hopper/IDA
+providers, deliberately passive on the web); OmniRecon autonomously crawls,
+interacts with, and instruments live web platforms, and routes binary targets
+to REA through a bridge when REA is installed with a configured provider.
+Since v1.31, web URLs, OpenAPI documents, repos, and shipped artifacts
+(APK/binaries/JS bundles) all enter through `recon_start` and are routed to
+the appropriate engine.
 
 | | OmniRecon | REA | Burp Suite + DevTools |
 |---|---|---|---|
@@ -204,36 +197,6 @@ recon_authenticate(session_id, login_url, username, password)
   not in the session dir, not in the evidence ledger, not in logs.
 - The ledger records *that* authentication happened (OBSERVED), never
   credential material.
-
-## Why top engineers pick OmniRecon
-
-Binary-forensics tools (REA and its 150 commands) are unmatched at decompiling
-shipped artifacts — and OmniRecon bridges to them instead of reimplementing
-them. Where OmniRecon wins is everything they *don't* do:
-
-1. **It drives, not just observes.** Goal-directed workflow tracing, autonomous
-   crawling, live network instrumentation with initiator stacks — REA is
-   deliberately passive on the web.
-2. **It checks itself.** `recon_verify_consistency` cross-examines every engine
-   against every other engine. A route the crawler found but no rendered page
-   confirms becomes UNVERIFIED; an endpoint seen in both static bundles *and*
-   live traffic becomes SOURCE_VERIFIED at 0.95. No competitor does this.
-3. **It hands you replayable truth.** Every workflow trace ships a standalone
-   Playwright script — run it against your rebuild to prove behavioral parity.
-4. **It recovers what others leave minified.** Source-map recovery reconstructs
-   the original file tree from published `.map` files.
-5. **One front door.** Web, API docs, repos, binaries — one session, one
-   evidence ledger, one 15-section rebuild spec. The agent never routes by
-   guesswork.
-6. **It sees data, not just structure.** Response/request body shapes,
-   WebSocket message schemas, and binary-XML manifests — values-free,
-   secrets-redacted, and classified. Nobody else ships this in an MCP.
-7. **The loop has memory.** Every `recon_compare_build` persists with trend
-   deltas; the spec emits a machine-readable `tasks.json` work queue. The
-   agent iterates toward parity instead of guessing.
-
-Every tool degrades honestly: on failure you get
-`{"error", "code", "hint"}` — never a traceback, never invented data.
 
 ## Installation
 
@@ -375,7 +338,7 @@ scripts, CI, or agents without MCP:
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
 interchangeable — start in one, continue in the other.
 
-### What the agent does with it (the superpower loop)
+### Agent workflow
 
 Once connected, the agent follows the bundled skill
 ([`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)) — a staged workflow
@@ -499,7 +462,7 @@ FINAL_REPORT_2026-10-12.md  build report
 
 [![Star History Chart](https://api.star-history.com/svg?repos=anilkumara9/omnirecon&type=date)](https://www.star-history.com/#anilkumara9/omnirecon&type=date)
 
-If OmniRecon gave your agent superpowers, leave a ⭐ — it helps other developers find it.
+If OmniRecon is useful in your workflow, consider leaving a ⭐ — it helps other developers find it.
 
 ## License
 
