@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 
-from .security import ReconError
+from .security import ReconError, redact as _redact_finding
 
 CLASSIFICATIONS = frozenset({
     "OBSERVED", "SOURCE_VERIFIED", "INFERRED", "UNVERIFIED", "BLOCKED",
@@ -104,18 +104,22 @@ class EvidenceLedger:
                              code="invalid_confidence")
 
         self._counter += 1
+        # Central redaction: every finding is scrubbed before it becomes
+        # durable ledger state, no matter which module recorded it. This is
+        # the last line of defense — per-tool redaction at return boundaries
+        # is not sufficient on its own.
         finding = Finding(
             id=f"F-{self._counter:04d}",
             type=ftype,
-            title=str(f.get("title", "")),
-            detail=str(f.get("detail", "")),
+            title=_redact_finding(str(f.get("title", ""))),
+            detail=_redact_finding(str(f.get("detail", ""))),
             classification=classification,
             confidence=confidence,
-            confidence_why=str(f.get("confidence_why", "")),
+            confidence_why=_redact_finding(str(f.get("confidence_why", ""))),
             sources=list(f.get("sources") or []),
-            route=f.get("route"),
-            component=f.get("component"),
-            endpoint=f.get("endpoint"),
+            route=_redact_finding(f.get("route")) if f.get("route") else None,
+            component=_redact_finding(f.get("component")) if f.get("component") else None,
+            endpoint=_redact_finding(f.get("endpoint")) if f.get("endpoint") else None,
             artifact=f.get("artifact"),
             timestamp=_utcnow(),
             verification=verification,

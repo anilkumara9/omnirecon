@@ -45,6 +45,8 @@ _SENSITIVE_EXACT = frozenset({
     "sessionid", "session_id", "session-id",
     "auth", "authentication", "x-auth-token", "auth-token",
     "api-key", "api_key", "apikey",
+    "x-session", "x-session-id", "x-sessionid", "sid", "sessid",
+    "code", "refresh_token", "refresh-token", "id_token", "id-token",
 })
 
 # Substring fragments (case-insensitive) that mark a key as secret-bearing.
@@ -65,8 +67,15 @@ _BASIC_RE = re.compile(r"(?i)\bbasic\s+[A-Za-z0-9+/=]{8,}")
 _KV_RE = re.compile(
     r"(?i)\b(token|secret|password|passwd|pwd|api_?key|apikey|"
     r"auth(?:[_\-][\w\-]*)?|authentication|"
-    r"session_?id|client_secret|access_key|private_?key)\s*=\s*"
+    r"session_?id|client_secret|access_key|private_?key|"
+    r"code|refresh_token|id_token)\s*=\s*"
     r"(\"[^\"]*\"|'[^']*'|[^\s&;,'\"]+)"
+)
+# colon-form secrets in free text / JSON-ish: "password": "x", 'token':'y'
+_KV_COLON_RE = re.compile(
+    r"(?i)(\"(?:token|secret|password|passwd|pwd|api_?key|apikey|"
+    r"auth(?:[_\-][\w\-]*)?|session_?id|client_secret|code|"
+    r"refresh_token|id_token)\"\s*:\s*)\"[^\"]*\""
 )
 
 
@@ -82,11 +91,18 @@ def _is_sensitive_key(key: str) -> bool:
 
 
 def _redact_url_string(s: str) -> str:
-    """Redact sensitive query params inside anything that looks like a URL."""
-    if "?" not in s or "://" not in s and not s.startswith("/"):
+    """Redact sensitive query params and userinfo inside anything URL-like."""
+    has_qs = "?" in s and ("://" in s or s.startswith("/"))
+    has_userinfo = "://" in s and "@" in s.split("://", 1)[1].split("/", 1)[0]
+    if not has_qs and not has_userinfo:
         return s
     try:
         parts = urlparse(s)
+        # strip userinfo: https://user:pass@host/ -> https://[REDACTED]@host/
+        if has_userinfo and "@" in parts.netloc:
+            parts = parts._replace(
+                netloc=REDACTED + "@" + parts.netloc.rsplit("@", 1)[1])
+            s = urlunparse(parts)
         if not parts.query:
             return s
         changed = False
@@ -110,6 +126,7 @@ def _clean_string(s: str) -> str:
     s = _BEARER_RE.sub("Bearer " + REDACTED, s)
     s = _BASIC_RE.sub("Basic " + REDACTED, s)
     s = _KV_RE.sub(lambda m: f"{m.group(1)}={REDACTED}", s)
+    s = _KV_COLON_RE.sub(lambda m: f"{m.group(1)}\"{REDACTED}\"", s)
     s = _redact_url_string(s)
     if len(s) > _MAX_STR_LEN:
         s = s[:_MAX_STR_LEN] + "…[truncated]"

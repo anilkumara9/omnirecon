@@ -11,6 +11,7 @@ import base64
 import json
 import os
 import re
+import time
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -333,6 +334,9 @@ def probe_endpoints(session_id: str, base_url: str,
             else:
                 dead += 1
             results.append({"endpoint": ep, "status": status, "verdict": verdict})
+            # politeness: small delay between probes so endpoint probing can
+            # never be mistaken for aggressive scanning (M5 fix)
+            time.sleep(0.25)
             _append(session_id, _mk(
                 "endpoint", f"Probed {ep[:80]} → {status or 'no response'}",
                 f"Live-probed {url}: HTTP {status} ({verdict})."

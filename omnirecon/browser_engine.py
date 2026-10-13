@@ -254,9 +254,19 @@ def _redact(obj: Any) -> Any:
 _SNAPSHOT_JS = r"""
 () => {
   const MAX_TEXT = 120;
-  const text = (el) => ((el.getAttribute('aria-label') || el.alt || el.value
+  const secretInput = (el) => {
+    const t = (el.getAttribute('type') || '').toLowerCase();
+    return t === 'password' || el.getAttribute('data-secret') !== null
+        || /passw|secret|token/i.test(el.getAttribute('name') || '');
+  };
+  const text = (el) => {
+    // NEVER capture typed values from secret-bearing inputs (H1 fix):
+    // passwords/secrets must not reach snapshots, findings, or the ledger.
+    const val = secretInput(el) ? '' : (el.value || '');
+    return ((el.getAttribute('aria-label') || el.alt || val
       || el.placeholder || el.title || (el.innerText || '').trim()
       ).replace(/\s+/g, ' ').slice(0, MAX_TEXT));
+  };
   const cssPath = (el) => {
     const parts = [];
     let e = el;

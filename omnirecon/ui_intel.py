@@ -39,11 +39,16 @@ _UI_TOKENS_JS = r"""
     if (pad !== '0px 0px') bump(spacing, pad);
     const tag = el.tagName.toLowerCase();
     if (/^(button|a|input|select|textarea)$/.test(tag) || el.getAttribute('role')) {
+      // NEVER sample typed values from secret-bearing inputs (H1 fix)
+      const t = (el.getAttribute('type') || '').toLowerCase();
+      const isSecret = t === 'password'
+          || /passw|secret|token/i.test(el.getAttribute('name') || '');
+      const sample = isSecret ? '' : (el.innerText || el.value || '').trim().slice(0, 40);
       const sig = [tag, cs.backgroundColor, cs.color, cs.borderRadius,
                    cs.fontSize, cs.fontWeight, cs.paddingTop].join('|');
       if (!comps[sig]) comps[sig] = {tag, bg: cs.backgroundColor, fg: cs.color,
         radius: cs.borderRadius, fontSize: cs.fontSize, weight: cs.fontWeight,
-        count: 0, sample: (el.innerText || el.value || '').trim().slice(0, 40)};
+        count: 0, sample: sample};
       comps[sig].count++;
     }
   }
