@@ -1,0 +1,40 @@
+# OmniRecon CI — runs the full pytest suite on every push and pull request.
+#
+# The suite includes real headless-Chromium browser tests (no mocks), so the
+# job installs Playwright's Chromium before running pytest. If this workflow
+# is green, `pytest tests/` passed on a clean ubuntu-latest runner.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: |
+          python -m playwright install --with-deps chromium
+
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+        env:
+          no_proxy: localhost,127.0.0.1
+          NO_PROXY: localhost,127.0.0.1

@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/anilkumara9/omnirecon/stargazers"><img src="https://img.shields.io/github/stars/anilkumara9/omnirecon?style=social" alt="GitHub stars" /></a>
+  <img src="https://img.shields.io/github/actions/workflow/status/anilkumara9/omnirecon/test.yml?branch=main" alt="CI" />
   <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
@@ -135,6 +136,10 @@ Or hand the whole thing to your agent: *"Reverse-engineer this platform and
 give me a rebuild plan."* It drives the 21 tools, consults the evidence
 ledger, and returns the blueprint. Try it on your own stack — that's the demo
 that converts skeptics.
+
+**Full worked example:** [`examples/teardown-acme-metrics/`](examples/teardown-acme-metrics/)
+— a complete session (evidence ledger, 15-section spec, design tokens,
+screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
 ## The 21 tools
 

@@ -1,0 +1,725 @@
+[
+  {
+    "id": "T-001",
+    "title": "Verify: No user journeys traced. Multi-step workflows, validation rules, and state transitions are UNVERIFIE",
+    "section": "user_journeys",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-002",
+    "title": "Verify: No data entities inferred. Domain models, relationships, and schemas are UNVERIFIED — a reconstructi",
+    "section": "data_entities",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-003",
+    "title": "Verify: No asset/design-token inventory. Images, fonts, icons, colors, and spacing are UNVERIFIED — recon_ex",
+    "section": "assets_tokens",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-004",
+    "title": "Verify: No authentication/authorization evidence. Login flows, session handling, and access boundaries are U",
+    "section": "auth_boundaries",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-005",
+    "title": "Verify: No visual references captured. Layout, typography, spacing, and responsive behavior are UNVERIFIED —",
+    "section": "visual_requirements",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-006",
+    "title": "Verify: No loading/empty/error states recorded. Edge-case behavior is UNVERIFIED — the reconstruction must s",
+    "section": "edge_cases",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-007",
+    "title": "Verify: Is any part of the target behind authentication? No auth evidence was captured.",
+    "section": "open_questions",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-008",
+    "title": "Verify: What is the domain data model? No entities were inferred from API responses or forms.",
+    "section": "open_questions",
+    "finding_ids": [],
+    "priority": "P1",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-009",
+    "title": "Strengthen inference: Route /",
+    "section": "routes",
+    "finding_ids": [],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-010",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905 with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0003"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-011",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0004"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-012",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/dashboard.html with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0005"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-013",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/pricing.html with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0006"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-014",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/signup.html with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0007"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-015",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0015"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-016",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0016"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-017",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0017"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-018",
+    "title": "Strengthen inference: Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0018"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-019",
+    "title": "Strengthen inference: Integrate endpoint /api/events?limit=5 where the UI depends on it; if the backend is unavailable, si",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0008"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-020",
+    "title": "Strengthen inference: Integrate endpoint /api/health where the UI depends on it; if the backend is unavailable, simulate i",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0009"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-021",
+    "title": "Strengthen inference: Integrate endpoint /api/signup where the UI depends on it; if the backend is unavailable, simulate i",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0010"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-022",
+    "title": "Strengthen inference: Integrate endpoint /api/stats where the UI depends on it; if the backend is unavailable, simulate it",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0011"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-023",
+    "title": "Strengthen inference: Integrate endpoint /dashboard.html where the UI depends on it; if the backend is unavailable, simula",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0012"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-024",
+    "title": "Strengthen inference: Integrate endpoint /pricing.html where the UI depends on it; if the backend is unavailable, simulate",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0013"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-025",
+    "title": "Strengthen inference: Integrate endpoint /signup.html where the UI depends on it; if the backend is unavailable, simulate ",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0014"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-026",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/dashboard.html where the UI depends on it; if the backend i",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0025"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-027",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/_shared.css where the UI depends on it; if the backend is u",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0026"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-028",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/api/stats where the UI depends on it; if the backend is una",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0027"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-029",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/api/events?limit=5 where the UI depends on it; if the backe",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0028"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-030",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/dashboard.html where the UI depends on it; if the backend i",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0031"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-031",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/_shared.css where the UI depends on it; if the backend is u",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0032"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-032",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/api/stats where the UI depends on it; if the backend is una",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0033"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-033",
+    "title": "Strengthen inference: Integrate endpoint http://127.0.0.1:8905/api/events?limit=5 where the UI depends on it; if the backe",
+    "section": "functional_requirements",
+    "finding_ids": [
+      "F-0034"
+    ],
+    "priority": "P2",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-034",
+    "title": "Build route /",
+    "section": "routes",
+    "finding_ids": [],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "recon_compare_build reports route / as matched"
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-035",
+    "title": "Build route http://127.0.0.1:8905",
+    "section": "routes",
+    "finding_ids": [
+      "F-0003"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "Route test: GET http://127.0.0.1:8905 returns 2xx and renders the recorded title/content.",
+      "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-036",
+    "title": "Build route http://127.0.0.1:8905/",
+    "section": "routes",
+    "finding_ids": [
+      "F-0004"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+      "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-037",
+    "title": "Build route http://127.0.0.1:8905/dashboard.html",
+    "section": "routes",
+    "finding_ids": [
+      "F-0005"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "Route test: GET http://127.0.0.1:8905/dashboard.html returns 2xx and renders the recorded title/content.",
+      "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-038",
+    "title": "Build route http://127.0.0.1:8905/pricing.html",
+    "section": "routes",
+    "finding_ids": [
+      "F-0006"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "Route test: GET http://127.0.0.1:8905/pricing.html returns 2xx and renders the recorded title/content.",
+      "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-039",
+    "title": "Build route http://127.0.0.1:8905/signup.html",
+    "section": "routes",
+    "finding_ids": [
+      "F-0007"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "Route test: GET http://127.0.0.1:8905/signup.html returns 2xx and renders the recorded title/content.",
+      "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-040",
+    "title": "Integrate endpoint /api/events?limit=5",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0008"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /api/events?limit=5 with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-041",
+    "title": "Integrate endpoint /api/health",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0009"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /api/health with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-042",
+    "title": "Integrate endpoint /api/signup",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0010"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /api/signup with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-043",
+    "title": "Integrate endpoint /api/stats",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0011"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /api/stats with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-044",
+    "title": "Integrate endpoint /dashboard.html",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0012"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /dashboard.html with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-045",
+    "title": "Integrate endpoint /pricing.html",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0013"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /pricing.html with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-046",
+    "title": "Integrate endpoint /signup.html",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0014"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise /signup.html with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-047",
+    "title": "Integrate endpoint http://127.0.0.1:8905/dashboard.html",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0025"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/dashboard.html with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-048",
+    "title": "Integrate endpoint http://127.0.0.1:8905/_shared.css",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0026"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/_shared.css with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-049",
+    "title": "Integrate endpoint http://127.0.0.1:8905/api/stats",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0027"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/api/stats with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-050",
+    "title": "Integrate endpoint http://127.0.0.1:8905/api/events?limit=5",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0028"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/api/events?limit=5 with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-051",
+    "title": "Integrate endpoint http://127.0.0.1:8905/dashboard.html",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0031"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/dashboard.html with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-052",
+    "title": "Integrate endpoint http://127.0.0.1:8905/_shared.css",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0032"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/_shared.css with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-053",
+    "title": "Integrate endpoint http://127.0.0.1:8905/api/stats",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0033"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/api/stats with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-054",
+    "title": "Integrate endpoint http://127.0.0.1:8905/api/events?limit=5",
+    "section": "api_inventory",
+    "finding_ids": [
+      "F-0034"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [
+      "API test: exercise http://127.0.0.1:8905/api/events?limit=5 with the observed method and assert the recorded status/content-type."
+    ],
+    "status": "pending"
+  },
+  {
+    "id": "T-055",
+    "title": "Build component: Component: a ×4 (Home) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(148, 163, 184), radius: 0p",
+    "section": "components",
+    "finding_ids": [
+      "F-0020"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-056",
+    "title": "Build component: Component: a ×1 (Start free trial) — Visual signature — bg: rgb(59, 130, 246), fg: rgb(255, 255, 255",
+    "section": "components",
+    "finding_ids": [
+      "F-0021"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-057",
+    "title": "Build component: Component: a ×1 (See pricing) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(59, 130, 246), radi",
+    "section": "components",
+    "finding_ids": [
+      "F-0022"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  },
+  {
+    "id": "T-058",
+    "title": "Build component: Component: a ×1 (Pricing) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(148, 163, 184), radius:",
+    "section": "components",
+    "finding_ids": [
+      "F-0023"
+    ],
+    "priority": "P3",
+    "depends_on": [],
+    "acceptance": [],
+    "status": "pending"
+  }
+]

@@ -1,0 +1,146 @@
+# Changelog
+
+All notable changes to OmniRecon. Dates are commit dates (UTC).
+
+## Unreleased
+
+- Test suite converted to pytest-native (`setup_module`/`teardown_module`);
+  158/158 green under plain `pytest tests/`.
+- README contradictions fixed: security section describes the authenticated-recon
+  model accurately; test counts state the verified number.
+- `verify_consistency` normalizes endpoints/routes before cross-engine
+  comparison (previously ~zero agreements by construction); route findings now
+  carry the structured `engine` field (`static` vs `rendered`).
+- `probe_endpoints`: 401/403/404 verdicts corrected to live-but-guarded;
+  probes all discovered endpoint shapes (not just `/api/*`); absolute URLs are
+  probed on their own host instead of being mangled into the target origin.
+- AXML decoder validated against a real APK (F-Droid): START_ELEMENT
+  `comment` field, namespace-chunk header, and fixed attribute base corrected;
+  synthetic test rebuilt on the true AOSP layout.
+- Replay scripts emit again (`save_replay_script` used an invalid finding
+  type, so no script was ever written).
+- Security: second password-capture path masked (`_resolve_target`);
+  OAuth codes redacted from the auth tool's direct return; `_redact`
+  fail-closed; `sources[]`/`limitations` redacted centrally; fallback ledger
+  writer routes through `EvidenceLedger`; DEX 256 MB input cap; auth cookie
+  paths via `safe_join`; sensitive-path guard on `recon_analyze_source`.
+- Auth: login success requires corroborating signals; cookies saved only on
+  success. `localhost`/`127.0.0.1` targets route as `http://`.
+- Browser tool calls now `shutdown()` (previously leaked one event-loop
+  thread per call).
+- Electron IPC detection survives minified bundles via `require("electron")`
+  dataflow tracking.
+- DEX findings distinguish method references from confirmed calls.
+
+## v1.35.0 — 2026-10-13
+
+- Authenticated sessions: new `recon_authenticate` / `recon_deauthenticate`
+  tools (21 total). Browser login flow with the operator's own credentials;
+  multi-signal success detection (URL change, password field gone, logout
+  signal, new cookies — catches JS-driven logins).
+- Session cookies saved `0600`, auto-injected into all later browser contexts
+  via `goto(session_id=...)`; password verified absent from `cookies.json`
+  and the ledger.
+- One-command installer: `install.sh` (idempotent, no hardcoded paths) plus
+  `requirements.txt` (`mcp<2` hard pin documented).
+- Pure-Python DEX parser (`omnirecon/dex.py`): header/checksum validation,
+  string pool, type/class/method/field inventory, interesting-API pattern
+  matching (network, crypto, reflection, JNI); wired into APK analysis with
+  `engine="binary"` findings.
+
+## v1.34.3 — 2026-10-13
+
+- Fixed `checkpoint()` silently discarding module-written findings (data loss):
+  `EvidenceLedger.merge_from()` merges file findings into the cache; id
+  counter synced past absorbed ids.
+- Fixed `recon_export_report(format="openapi")` (100% broken —
+  `EvidenceLedger` is not iterable); now iterates `ledger.list()`.
+- `verify_consistency` corroboration path repaired via the structured `engine`
+  field on findings (`static`/`rendered`/`network`/`spec`/`binary`).
+- `"schema"` added to `FINDING_TYPES`.
+- Unified the two `ReconError` classes; `browser_engine` imports the single
+  `omnirecon.security.ReconError`.
+
+## v1.34.2 — 2026-10-13
+
+- Password input values are no longer captured anywhere: `secretInput()` gate
+  in the snapshot JS (type=password, `data-secret`, name matching
+  `passw|secret|token`); same gate in the UI-intel token script. Verified:
+  typed password absent from snapshot, UI analysis, and ledger.
+- Central redaction in `EvidenceLedger.add()`: title, detail,
+  `confidence_why`, route, component, endpoint are scrubbed before findings
+  become durable, independent of per-tool call sites.
+- Redaction patterns expanded: OAuth `?code=`, refresh/id tokens, URL
+  userinfo, colon-form JSON secrets, `x-session`/`sid`/`sessid` headers.
+- `probe_endpoints` gains a 0.25 s politeness delay between probes.
+
+## v1.34.1 — 2026-10-13
+
+- Documentation-rot fixes from the ecosystem review: tool/command counts,
+  test counts, and module counts corrected across README, CLI help, and
+  SKILL.md.
+- `recon_start` docstring covers the universal front door; CLI `--format`
+  gains `openapi`; `discover-routes` gains `--background`.
+- SKILL.md: machine-independent venv path; routing table covers
+  `recon_extract_assets`.
+
+## v1.34.0 — 2026-10-13
+
+- New 19th tool `recon_analyze_ui` (`omnirecon/ui_intel.py`): design tokens
+  (colors, type scale, fonts, spacing, radii, shadows) from rendered computed
+  styles; component inventory grouped by visual signature; CSS framework
+  detection (Tailwind, MUI, Chakra, Bootstrap, Ant Design); layout landmark
+  sectioning.
+- CLI parity (`recon-analyze-ui`); 3 hermetic tests via `data:` URLs.
+- README "UI reverse engineering" section; SKILL.md gains the UI
+  designer-handoff step.
+
+## v1.33.0 — 2026-10-13
+
+- Pure-Python AXML decoder (`omnirecon/axml.py`): binary Android manifests
+  decode to package, permissions, activities, services, deep links.
+- Response/request body capture with values-free schema inference
+  (`infer_shape`); WebSocket frame capture.
+- Electron introspection (`omnirecon/electron_intel.py`): `.asar` extraction,
+  IPC channel inventory, `BrowserWindow` preferences, REA bridge for
+  JavaScript-application analysis.
+- Loop memory: `compare_build` persists runs with trend deltas; spec emits a
+  machine-readable `tasks.json` build manifest.
+- SKILL.md surgery: APK routing contradiction fixed, anti-patterns,
+  confidence-to-action thresholds.
+
+## v1.32.0 — 2026-10-13
+
+- New `recon_verify_consistency` (16th tool): cross-engine accuracy check;
+  agreements corroborated to `SOURCE_VERIFIED`/0.95, contradictions downgraded
+  with reasons, never dropped.
+- New `recon_recover_sourcemaps` (17th): reconstruct original source trees
+  from published `.js.map` files.
+- New `recon_probe_endpoints` (18th): `HEAD`→`GET` live-probing of discovered
+  API endpoints with live/dead verdicts.
+- `recon_trace_workflow` auto-emits standalone Playwright replay scripts.
+
+## v1.31.0 — 2026-10-13
+
+- Universal target front door: `recon_start` routes `url` / `api_spec` /
+  `repo` / `artifact` targets to the right engine.
+- New `recon_analyze_artifact` (15th tool): APK manifest, ELF via
+  readelf/nm, string-mined URLs; honest `BLOCKED` when deep analysis needs
+  REA providers that aren't configured.
+- REA bridge: fuses `rea` CLI results into the evidence ledger when REA is
+  installed with a configured provider.
+- OpenAPI pipeline: `api_spec` targets inventoried; `recon_export_report`
+  gains `format="openapi"` with `x-omni-evidence` provenance.
+
+## v1.30.0 — 2026-10-13
+
+- Initial release: session-based reverse-engineering MCP server, 14 tools.
+- Owned Playwright browser engine: route crawl, page inspect, workflow
+  tracing, live network capture with CDP initiator stacks, screenshots.
+- Evidence ledger with `OBSERVED` / `SOURCE_VERIFIED` / `INFERRED` /
+  `UNVERIFIED` / `BLOCKED` classifications; secret redaction.
+- 15-section reconstruction blueprint generator; build comparator;
+  machine-readable exports.
+- CLI mirroring all MCP tools; agent skill docs (`skills/omnirecon/SKILL.md`)
+  with a target routing table.
+- Measured benchmarks against a fixture with ground truth.

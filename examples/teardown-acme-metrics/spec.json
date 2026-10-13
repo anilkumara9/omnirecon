@@ -1,0 +1,1044 @@
+{
+  "meta": {
+    "generated_utc": "2026-10-13T06:48:33.043602+00:00",
+    "finding_count": 36,
+    "by_classification": {
+      "OBSERVED": 36
+    },
+    "by_type": {
+      "tech": 2,
+      "note": 2,
+      "route": 9,
+      "endpoint": 15,
+      "component": 4,
+      "schema": 4
+    },
+    "graph_nodes": 43,
+    "graph_edges": 12,
+    "sections": [
+      "overview",
+      "tech_stack",
+      "routes",
+      "components",
+      "user_journeys",
+      "api_inventory",
+      "data_entities",
+      "assets_tokens",
+      "auth_boundaries",
+      "functional_requirements",
+      "visual_requirements",
+      "edge_cases",
+      "test_plan",
+      "open_questions",
+      "priorities"
+    ]
+  },
+  "sections": {
+    "overview": {
+      "name": "overview",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "Reverse-engineering blueprint for http://127.0.0.1:8905, derived from 36 evidence findings.",
+          "finding_ids": [
+            "F-0001",
+            "F-0002",
+            "F-0003",
+            "F-0004",
+            "F-0005",
+            "F-0006",
+            "F-0007",
+            "F-0008",
+            "F-0009",
+            "F-0010",
+            "F-0011",
+            "F-0012",
+            "F-0013",
+            "F-0014",
+            "F-0015",
+            "F-0016",
+            "F-0017",
+            "F-0018",
+            "F-0019",
+            "F-0020",
+            "F-0021",
+            "F-0022",
+            "F-0023",
+            "F-0024",
+            "F-0025",
+            "F-0026",
+            "F-0027",
+            "F-0028",
+            "F-0029",
+            "F-0030",
+            "F-0031",
+            "F-0032",
+            "F-0033",
+            "F-0034",
+            "F-0035",
+            "F-0036"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.8,
+          "confidence_why": "target inferred from the most common finding source"
+        },
+        {
+          "text": "Evidence mix: {'OBSERVED': 36}. Finding types: {'tech': 2, 'note': 2, 'route': 9, 'endpoint': 15, 'component': 4, 'schema': 4}.",
+          "finding_ids": [
+            "F-0001",
+            "F-0002",
+            "F-0003",
+            "F-0004",
+            "F-0005",
+            "F-0006",
+            "F-0007",
+            "F-0008",
+            "F-0009",
+            "F-0010",
+            "F-0011",
+            "F-0012",
+            "F-0013",
+            "F-0014",
+            "F-0015",
+            "F-0016",
+            "F-0017",
+            "F-0018",
+            "F-0019",
+            "F-0020",
+            "F-0021",
+            "F-0022",
+            "F-0023",
+            "F-0024",
+            "F-0025",
+            "F-0026",
+            "F-0027",
+            "F-0028",
+            "F-0029",
+            "F-0030",
+            "F-0031",
+            "F-0032",
+            "F-0033",
+            "F-0034",
+            "F-0035",
+            "F-0036"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "counts computed directly from the evidence ledger"
+        }
+      ]
+    },
+    "tech_stack": {
+      "name": "tech_stack",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "Platform uses Unknown / custom stack: Evidence: no known framework markers matched",
+          "finding_ids": [
+            "F-0001"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.85,
+          "confidence_why": "Matched a known framework/infra marker in headers or HTML."
+        },
+        {
+          "text": "Design tokens: http://127.0.0.1:8905/: Frameworks: none detected\nType scale: 15px, 16px, 36px, 18px, 20px, 56px, 14px, 19px\nFonts: Inter\nWeights: 400, 800, 700, 600\nRadii: 12px\nSpacing (padding-y/x): 32px 32px, 12px 28px, 20px 48px, 96px 24px, 64px 48px, 48px 48px\nShadows: 0 distinct\nTop colors (text|bg): rgb(226, 232, 240)|rgba(0, 0, 0, 0); rgb(148, 163, 184)|rgba(0, 0, 0, 0); rgb(59, 130, 246)|rgba(0, 0, 0, 0); rgb(226, 232, 240)|rgb(30, 41, 59); rgb(255, 255, 255)|rgb(59, 130, 246)",
+          "finding_ids": [
+            "F-0019"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "computed styles sampled from rendered elements (not stylesheets)"
+        }
+      ]
+    },
+    "routes": {
+      "name": "routes",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "Route /",
+          "finding_ids": [],
+          "classification": "INFERRED",
+          "confidence": 0.4,
+          "confidence_why": "route appears only in the graph, not as a direct finding"
+        },
+        {
+          "text": "Route http://127.0.0.1:8905 — title='Acme Metrics — Analytics for modern teams' depth=0 internal_links=4",
+          "finding_ids": [
+            "F-0003"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "page fetched and parsed during crawl"
+        },
+        {
+          "text": "Route http://127.0.0.1:8905/ — title='Acme Metrics — Analytics for modern teams' depth=1 internal_links=3",
+          "finding_ids": [
+            "F-0004"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "page fetched and parsed during crawl"
+        },
+        {
+          "text": "Route http://127.0.0.1:8905/dashboard.html — title='Dashboard — Acme Metrics' depth=1 internal_links=0",
+          "finding_ids": [
+            "F-0005"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "page fetched and parsed during crawl"
+        },
+        {
+          "text": "Route http://127.0.0.1:8905/pricing.html — title='Pricing — Acme Metrics' depth=1 internal_links=1",
+          "finding_ids": [
+            "F-0006"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "page fetched and parsed during crawl"
+        },
+        {
+          "text": "Route http://127.0.0.1:8905/signup.html — title='Sign up — Acme Metrics' depth=1 internal_links=0",
+          "finding_ids": [
+            "F-0007"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "page fetched and parsed during crawl"
+        }
+      ]
+    },
+    "components": {
+      "name": "components",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "Component: a ×4 (Home) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(148, 163, 184), radius: 0px, font: 15px w400. 4 instances share this exact signature (a design-system variant).",
+          "finding_ids": [
+            "F-0020"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "grouped by computed-style signature across rendered elements"
+        },
+        {
+          "text": "Component: a ×1 (Start free trial) — Visual signature — bg: rgb(59, 130, 246), fg: rgb(255, 255, 255), radius: 12px, font: 15px w600. 1 instances share this exact signature (a design-system variant).",
+          "finding_ids": [
+            "F-0021"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "grouped by computed-style signature across rendered elements"
+        },
+        {
+          "text": "Component: a ×1 (See pricing) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(59, 130, 246), radius: 12px, font: 15px w600. 1 instances share this exact signature (a design-system variant).",
+          "finding_ids": [
+            "F-0022"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "grouped by computed-style signature across rendered elements"
+        },
+        {
+          "text": "Component: a ×1 (Pricing) — Visual signature — bg: rgba(0, 0, 0, 0), fg: rgb(148, 163, 184), radius: 0px, font: 14px w400. 1 instances share this exact signature (a design-system variant).",
+          "finding_ids": [
+            "F-0023"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "grouped by computed-style signature across rendered elements"
+        }
+      ]
+    },
+    "user_journeys": {
+      "name": "user_journeys",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No user journeys traced. Multi-step workflows, validation rules, and state transitions are UNVERIFIED — recon_trace_workflow has not produced evidence.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no workflow findings in the ledger"
+        }
+      ]
+    },
+    "api_inventory": {
+      "name": "api_inventory",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "/api/events?limit=5 — kind=api scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0008"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/api/health — kind=api scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0009"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/api/signup — kind=api scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0010"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/api/stats — kind=api scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0011"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/dashboard.html — kind=other scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0012"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/pricing.html — kind=other scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0013"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "/signup.html — kind=other scope=internal discovered across crawled pages",
+          "finding_ids": [
+            "F-0014"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.75,
+          "confidence_why": "endpoint literal found in crawled page/JS text"
+        },
+        {
+          "text": "http://127.0.0.1:8905/dashboard.html — status=200 type=document",
+          "finding_ids": [
+            "F-0025"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/_shared.css — status=200 type=stylesheet",
+          "finding_ids": [
+            "F-0026"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/api/stats — status=200 type=fetch",
+          "finding_ids": [
+            "F-0027"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/api/events?limit=5 — status=200 type=fetch",
+          "finding_ids": [
+            "F-0028"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/dashboard.html — status=200 type=document",
+          "finding_ids": [
+            "F-0031"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/_shared.css — status=200 type=stylesheet",
+          "finding_ids": [
+            "F-0032"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/api/stats — status=200 type=fetch",
+          "finding_ids": [
+            "F-0033"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "http://127.0.0.1:8905/api/events?limit=5 — status=200 type=fetch",
+          "finding_ids": [
+            "F-0034"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.95,
+          "confidence_why": "request actually issued by the page in the browser"
+        },
+        {
+          "text": "Only endpoints listed above may be treated as real. Do not invent undocumented backend behavior, request/response schemas, or auth requirements beyond what the findings state.",
+          "finding_ids": [
+            "F-0008",
+            "F-0009",
+            "F-0010",
+            "F-0011",
+            "F-0012",
+            "F-0013",
+            "F-0014",
+            "F-0025",
+            "F-0026",
+            "F-0027",
+            "F-0028",
+            "F-0031",
+            "F-0032",
+            "F-0033",
+            "F-0034"
+          ],
+          "classification": "OBSERVED",
+          "confidence": 0.9,
+          "confidence_why": "scoping rule: evidence ledger is the closed world"
+        }
+      ]
+    },
+    "data_entities": {
+      "name": "data_entities",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No data entities inferred. Domain models, relationships, and schemas are UNVERIFIED — a reconstruction must treat persistence as an open design decision, not a recovered schema.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no entity findings in the ledger"
+        }
+      ]
+    },
+    "assets_tokens": {
+      "name": "assets_tokens",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No asset/design-token inventory. Images, fonts, icons, colors, and spacing are UNVERIFIED — recon_extract_assets has not run.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no asset findings in the ledger"
+        }
+      ]
+    },
+    "auth_boundaries": {
+      "name": "auth_boundaries",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No authentication/authorization evidence. Login flows, session handling, and access boundaries are UNVERIFIED — do not assume the target is public or that any area requires login.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no auth findings in the ledger"
+        }
+      ]
+    },
+    "functional_requirements": {
+      "name": "functional_requirements",
+      "status": "ok",
+      "note": "Derived requirements; each is only as strong as its evidence.",
+      "bullets": [
+        {
+          "text": "Serve route http://127.0.0.1:8905 with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0003"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0004"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/dashboard.html with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0005"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/pricing.html with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0006"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/signup.html with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0007"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0015"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0016"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0017"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Serve route http://127.0.0.1:8905/ with the recorded content and navigation behavior.",
+          "finding_ids": [
+            "F-0018"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "requirement derived from an observed route"
+        },
+        {
+          "text": "Integrate endpoint /api/events?limit=5 where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0008"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /api/health where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0009"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /api/signup where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0010"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /api/stats where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0011"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /dashboard.html where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0012"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /pricing.html where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0013"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint /signup.html where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0014"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/dashboard.html where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0025"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/_shared.css where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0026"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/api/stats where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0027"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/api/events?limit=5 where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0028"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/dashboard.html where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0031"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/_shared.css where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0032"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/api/stats where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0033"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        },
+        {
+          "text": "Integrate endpoint http://127.0.0.1:8905/api/events?limit=5 where the UI depends on it; if the backend is unavailable, simulate it explicitly and label the build 'frontend reconstruction'.",
+          "finding_ids": [
+            "F-0034"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "requirement derived from an observed endpoint"
+        }
+      ]
+    },
+    "visual_requirements": {
+      "name": "visual_requirements",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No visual references captured. Layout, typography, spacing, and responsive behavior are UNVERIFIED — screenshots at desktop, tablet, and mobile viewports are needed before visual fidelity can be specified.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no screenshot artifacts in the ledger"
+        }
+      ]
+    },
+    "edge_cases": {
+      "name": "edge_cases",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "No loading/empty/error states recorded. Edge-case behavior is UNVERIFIED — the reconstruction must still handle network failures, empty data, and invalid input defensively.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 1.0,
+          "confidence_why": "no state or error findings in the ledger"
+        }
+      ]
+    },
+    "test_plan": {
+      "name": "test_plan",
+      "status": "ok",
+      "note": "Plan items are generated, not executed. recon_compare_build verifies a build against this plan.",
+      "bullets": [
+        {
+          "text": "Route test: GET http://127.0.0.1:8905 returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0003"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0004"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/dashboard.html returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0005"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/pricing.html returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0006"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/signup.html returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0007"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0015"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0016"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0017"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "Route test: GET http://127.0.0.1:8905/ returns 2xx and renders the recorded title/content.",
+          "finding_ids": [
+            "F-0018"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.6,
+          "confidence_why": "plan item generated from an observed route; not yet executed"
+        },
+        {
+          "text": "API test: exercise /api/events?limit=5 with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0008"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /api/health with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0009"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /api/signup with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0010"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /api/stats with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0011"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /dashboard.html with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0012"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /pricing.html with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0013"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise /signup.html with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0014"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/dashboard.html with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0025"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/_shared.css with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0026"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/api/stats with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0027"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/api/events?limit=5 with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0028"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/dashboard.html with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0031"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/_shared.css with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0032"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/api/stats with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0033"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "API test: exercise http://127.0.0.1:8905/api/events?limit=5 with the observed method and assert the recorded status/content-type.",
+          "finding_ids": [
+            "F-0034"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.55,
+          "confidence_why": "plan item generated from an observed endpoint; not yet executed"
+        },
+        {
+          "text": "Accessibility check: keyboard-navigate every recorded route; assert visible focus and no console errors on load.",
+          "finding_ids": [
+            "F-0003",
+            "F-0004",
+            "F-0005",
+            "F-0006",
+            "F-0007",
+            "F-0015",
+            "F-0016",
+            "F-0017",
+            "F-0018"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.5,
+          "confidence_why": "standard gate; not yet executed"
+        }
+      ]
+    },
+    "open_questions": {
+      "name": "open_questions",
+      "status": "missing",
+      "note": "",
+      "bullets": [
+        {
+          "text": "Is any part of the target behind authentication? No auth evidence was captured.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 0.7,
+          "confidence_why": "auth section empty"
+        },
+        {
+          "text": "What is the domain data model? No entities were inferred from API responses or forms.",
+          "finding_ids": [],
+          "classification": "UNVERIFIED",
+          "confidence": 0.7,
+          "confidence_why": "entity section empty"
+        }
+      ]
+    },
+    "priorities": {
+      "name": "priorities",
+      "status": "ok",
+      "note": "",
+      "bullets": [
+        {
+          "text": "P3 — Implement routes, then API integration, then workflows, then visual polish — in that order, verifying each against recon_compare_build before moving on.",
+          "finding_ids": [
+            "F-0001",
+            "F-0002",
+            "F-0003",
+            "F-0004",
+            "F-0005",
+            "F-0006",
+            "F-0007",
+            "F-0008",
+            "F-0009",
+            "F-0010",
+            "F-0011",
+            "F-0012",
+            "F-0013",
+            "F-0014",
+            "F-0015",
+            "F-0016",
+            "F-0017",
+            "F-0018",
+            "F-0019",
+            "F-0020",
+            "F-0021",
+            "F-0022",
+            "F-0023",
+            "F-0024",
+            "F-0025",
+            "F-0026",
+            "F-0027",
+            "F-0028",
+            "F-0029",
+            "F-0030",
+            "F-0031",
+            "F-0032",
+            "F-0033",
+            "F-0034",
+            "F-0035",
+            "F-0036"
+          ],
+          "classification": "INFERRED",
+          "confidence": 0.75,
+          "confidence_why": "order minimizes rework: structure before behavior before surface"
+        }
+      ]
+    }
+  }
+}

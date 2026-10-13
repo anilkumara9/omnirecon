@@ -1,0 +1,497 @@
+{
+  "nodes": [
+    {
+      "id": "F-0020",
+      "kind": "component",
+      "label": "Component: a ×4 (Home)",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0021",
+      "kind": "component",
+      "label": "Component: a ×1 (Start free trial)",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0022",
+      "kind": "component",
+      "label": "Component: a ×1 (See pricing)",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0023",
+      "kind": "component",
+      "label": "Component: a ×1 (Pricing)",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0008",
+      "kind": "endpoint",
+      "label": "Endpoint /api/events?limit=5",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0009",
+      "kind": "endpoint",
+      "label": "Endpoint /api/health",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0010",
+      "kind": "endpoint",
+      "label": "Endpoint /api/signup",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0011",
+      "kind": "endpoint",
+      "label": "Endpoint /api/stats",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0012",
+      "kind": "endpoint",
+      "label": "Endpoint /dashboard.html",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0013",
+      "kind": "endpoint",
+      "label": "Endpoint /pricing.html",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0014",
+      "kind": "endpoint",
+      "label": "Endpoint /signup.html",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.75
+    },
+    {
+      "id": "F-0025",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/dashboard.html",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0026",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/_shared.css",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0027",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/api/stats",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0028",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/api/events?limit=5",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0031",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/dashboard.html",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0032",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/_shared.css",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0033",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/api/stats",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0034",
+      "kind": "endpoint",
+      "label": "Observed GET http://127.0.0.1:8905/api/events?limit=5",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0040",
+      "kind": "endpoint",
+      "label": "Corroborated endpoint: /api/events?limit=5",
+      "route": null,
+      "classification": "SOURCE_VERIFIED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0041",
+      "kind": "endpoint",
+      "label": "Corroborated endpoint: /api/stats",
+      "route": null,
+      "classification": "SOURCE_VERIFIED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0042",
+      "kind": "endpoint",
+      "label": "Corroborated endpoint: /dashboard.html",
+      "route": null,
+      "classification": "SOURCE_VERIFIED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0043",
+      "kind": "endpoint",
+      "label": "Static-only endpoint: /api/health",
+      "route": null,
+      "classification": "INFERRED",
+      "confidence": 0.55
+    },
+    {
+      "id": "F-0044",
+      "kind": "endpoint",
+      "label": "Static-only endpoint: /api/signup",
+      "route": null,
+      "classification": "INFERRED",
+      "confidence": 0.55
+    },
+    {
+      "id": "F-0045",
+      "kind": "endpoint",
+      "label": "Static-only endpoint: /pricing.html",
+      "route": null,
+      "classification": "INFERRED",
+      "confidence": 0.55
+    },
+    {
+      "id": "F-0046",
+      "kind": "endpoint",
+      "label": "Static-only endpoint: /signup.html",
+      "route": null,
+      "classification": "INFERRED",
+      "confidence": 0.55
+    },
+    {
+      "id": "F-0002",
+      "kind": "note",
+      "label": "Rapid recon: Acme Metrics — Analytics for modern teams",
+      "route": "/",
+      "classification": "OBSERVED",
+      "confidence": 0.95
+    },
+    {
+      "id": "F-0024",
+      "kind": "note",
+      "label": "Layout: 2 landmark sections",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0037",
+      "kind": "note",
+      "label": "Unrendered route: http://127.0.0.1:8905/dashboard.html",
+      "route": "http://127.0.0.1:8905/dashboard.html",
+      "classification": "UNVERIFIED",
+      "confidence": 0.4
+    },
+    {
+      "id": "F-0038",
+      "kind": "note",
+      "label": "Unrendered route: http://127.0.0.1:8905/pricing.html",
+      "route": "http://127.0.0.1:8905/pricing.html",
+      "classification": "UNVERIFIED",
+      "confidence": 0.4
+    },
+    {
+      "id": "F-0039",
+      "kind": "note",
+      "label": "Unrendered route: http://127.0.0.1:8905/signup.html",
+      "route": "http://127.0.0.1:8905/signup.html",
+      "classification": "UNVERIFIED",
+      "confidence": 0.4
+    },
+    {
+      "id": "platform",
+      "kind": "platform",
+      "label": "http://127.0.0.1:8905",
+      "route": null
+    },
+    {
+      "id": "F-0003",
+      "kind": "route",
+      "label": "Route http://127.0.0.1:8905",
+      "route": "http://127.0.0.1:8905",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0004",
+      "kind": "route",
+      "label": "Route http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0005",
+      "kind": "route",
+      "label": "Route http://127.0.0.1:8905/dashboard.html",
+      "route": "http://127.0.0.1:8905/dashboard.html",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0006",
+      "kind": "route",
+      "label": "Route http://127.0.0.1:8905/pricing.html",
+      "route": "http://127.0.0.1:8905/pricing.html",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0007",
+      "kind": "route",
+      "label": "Route http://127.0.0.1:8905/signup.html",
+      "route": "http://127.0.0.1:8905/signup.html",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0015",
+      "kind": "route",
+      "label": "Inspected http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0016",
+      "kind": "route",
+      "label": "Inspected http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0017",
+      "kind": "route",
+      "label": "Inspected http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0018",
+      "kind": "route",
+      "label": "Inspected http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/",
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "route:/",
+      "kind": "route",
+      "label": "/",
+      "route": "/"
+    },
+    {
+      "id": "route:http://127.0.0.1:8905",
+      "kind": "route",
+      "label": "http://127.0.0.1:8905",
+      "route": "http://127.0.0.1:8905"
+    },
+    {
+      "id": "route:http://127.0.0.1:8905/",
+      "kind": "route",
+      "label": "http://127.0.0.1:8905/",
+      "route": "http://127.0.0.1:8905/"
+    },
+    {
+      "id": "route:http://127.0.0.1:8905/dashboard.html",
+      "kind": "route",
+      "label": "http://127.0.0.1:8905/dashboard.html",
+      "route": "http://127.0.0.1:8905/dashboard.html"
+    },
+    {
+      "id": "route:http://127.0.0.1:8905/pricing.html",
+      "kind": "route",
+      "label": "http://127.0.0.1:8905/pricing.html",
+      "route": "http://127.0.0.1:8905/pricing.html"
+    },
+    {
+      "id": "route:http://127.0.0.1:8905/signup.html",
+      "kind": "route",
+      "label": "http://127.0.0.1:8905/signup.html",
+      "route": "http://127.0.0.1:8905/signup.html"
+    },
+    {
+      "id": "F-0029",
+      "kind": "schema",
+      "label": "Response shape: GET http://127.0.0.1:8905/api/stats",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0030",
+      "kind": "schema",
+      "label": "Response shape: GET http://127.0.0.1:8905/api/events?limit=5",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0035",
+      "kind": "schema",
+      "label": "Response shape: GET http://127.0.0.1:8905/api/stats",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0036",
+      "kind": "schema",
+      "label": "Response shape: GET http://127.0.0.1:8905/api/events?limit=5",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    },
+    {
+      "id": "F-0001",
+      "kind": "tech",
+      "label": "Platform uses Unknown / custom stack",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.85
+    },
+    {
+      "id": "F-0019",
+      "kind": "tech",
+      "label": "Design tokens: http://127.0.0.1:8905/",
+      "route": null,
+      "classification": "OBSERVED",
+      "confidence": 0.9
+    }
+  ],
+  "edges": [
+    {
+      "from": "F-0001",
+      "to": "platform",
+      "rel": "built_with"
+    },
+    {
+      "from": "F-0019",
+      "to": "platform",
+      "rel": "built_with"
+    },
+    {
+      "from": "F-0002",
+      "to": "route:/",
+      "rel": "about"
+    },
+    {
+      "from": "F-0003",
+      "to": "route:http://127.0.0.1:8905",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0004",
+      "to": "route:http://127.0.0.1:8905/",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0005",
+      "to": "route:http://127.0.0.1:8905/dashboard.html",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0006",
+      "to": "route:http://127.0.0.1:8905/pricing.html",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0007",
+      "to": "route:http://127.0.0.1:8905/signup.html",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0015",
+      "to": "route:http://127.0.0.1:8905/",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0016",
+      "to": "route:http://127.0.0.1:8905/",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0017",
+      "to": "route:http://127.0.0.1:8905/",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0018",
+      "to": "route:http://127.0.0.1:8905/",
+      "rel": "defines"
+    },
+    {
+      "from": "F-0037",
+      "to": "route:http://127.0.0.1:8905/dashboard.html",
+      "rel": "about"
+    },
+    {
+      "from": "F-0038",
+      "to": "route:http://127.0.0.1:8905/pricing.html",
+      "rel": "about"
+    },
+    {
+      "from": "F-0039",
+      "to": "route:http://127.0.0.1:8905/signup.html",
+      "rel": "about"
+    }
+  ],
+  "counts": {
+    "nodes": 53,
+    "edges": 15,
+    "routes": 6,
+    "findings": 46
+  }
+}
