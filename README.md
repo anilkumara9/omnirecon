@@ -210,8 +210,10 @@ Requirements: Python 3.10+, no Node.js.
 ```bash
 git clone https://github.com/anilkumara9/omnirecon.git
 cd omnirecon
-./install.sh
+./install.sh        # Linux / macOS
 ```
+
+Windows: run `install.bat` instead (same steps: venv + deps + Chromium + verify).
 
 This checks your Python, creates `.venv/`, installs dependencies, downloads
 Playwright's Chromium (~300MB, skipped if already present), and verifies the
@@ -236,11 +238,25 @@ Run the server (stdio transport):
 ## Connecting your agent
 
 OmniRecon is a **stdio MCP server**: one Python process, no ports, no daemons.
+Restart the agent/IDE after registering.
+
+**Easiest — zero path mistakes:**
+
+```bash
+.venv/bin/python -m omnirecon.cli setup cursor
+# or: claude-code, codex, windsurf, zed, generic
+```
+
+This auto-detects your venv Python and `server.py` and prints the exact config
+(or the exact command) for your client — no `/path/to/...` to get wrong.
+
+<details>
+<summary>Manual config (if you prefer each step explicit)</summary>
+
 Every integration below registers the same thing — the Python interpreter from
 your virtualenv running `omnirecon/server.py`. Replace `/path/to/omnirecon`
 with your clone location and use the venv Python (not system Python), so the
-pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve. Restart the
-agent/IDE after registering.
+pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve.
 
 ### Claude Code (CLI)
 
@@ -326,6 +342,8 @@ Any client that speaks MCP over stdio works: register a server with
 - **command:** `/path/to/omnirecon/.venv/bin/python`
 - **args:** `["/path/to/omnirecon/omnirecon/server.py"]`
 - **transport:** stdio (the default — no SSE/HTTP needed)
+
+</details>
 
 ### No MCP support? Use the CLI
 

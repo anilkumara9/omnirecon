@@ -173,7 +173,82 @@ def build_parser() -> argparse.ArgumentParser:
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_deauthenticate(a.session))
 
+    p = sub.add_parser("setup", help="Generate MCP client config with correct paths (no copy-paste errors).")
+    p.add_argument("client", choices=["claude-code", "codex", "cursor", "windsurf", "zed", "generic"],
+                   help="Which agent/IDE to configure.")
+    p.add_argument("--project", default="",
+                   help="For claude-code: project dir to scope the config to (writes .mcp.json there).")
+    p.set_defaults(func=_setup_client)
+
     return ap
+
+
+def _setup_client(a) -> dict:
+    """Generate MCP config with auto-detected absolute paths.
+
+    Eliminates the #1 first-run failure: wrong paths in the client config.
+    """
+    import shutil
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    server_py = os.path.join(root, "omnirecon", "server.py")
+    # Prefer the venv Python next to the project, else the current interpreter.
+    venv_py = os.path.join(root, ".venv", "bin", "python")
+    if os.name == "nt":
+        venv_py = os.path.join(root, ".venv", "Scripts", "python.exe")
+    python = venv_py if os.path.isfile(venv_py) else sys.executable
+
+    problems = []
+    if not os.path.isfile(server_py):
+        problems.append(f"server.py not found at {server_py}")
+    if not os.path.isfile(python):
+        problems.append(f"python not found at {python} — run ./install.sh first")
+    if problems:
+        return {"error": "; ".join(problems), "code": "setup_failed",
+                "hint": "Run ./install.sh (or install.bat on Windows) first."}
+
+    entry = {"command": python, "args": [server_py]}
+    client = a.client
+
+    if client == "claude-code":
+        # Prefer the CLI if available; fall back to printing the JSON.
+        claude = shutil.which("claude")
+        if claude and not a.project:
+            return {"action": "run",
+                    "command": [claude, "mcp", "add", "omnirecon", "--",
+                                python, server_py],
+                    "note": "Run this command to register OmniRecon with Claude Code."}
+        cfg = {"mcpServers": {"omnirecon": entry}}
+        target = os.path.join(a.project or root, ".mcp.json")
+        return {"action": "write", "path": target,
+                "content": cfg,
+                "note": f"Write this JSON to {target} (project-scoped for Claude Code)."}
+
+    if client == "codex":
+        snippet = ("[mcp_servers.omnirecon]\n"
+                   f"command = \"{python}\"\n"
+                   f"args = [\"{server_py}\"]\n")
+        return {"action": "append",
+                "path": os.path.expanduser("~/.codex/config.toml"),
+                "content": snippet,
+                "note": "Add to ~/.codex/config.toml, then restart Codex."}
+
+    if client == "zed":
+        cfg = {"context_servers": {"omnirecon": entry}}
+        return {"action": "merge",
+                "path": os.path.expanduser("~/.config/zed/settings.json"),
+                "content": cfg,
+                "note": "Merge context_servers into your Zed settings.json, then restart Zed."}
+
+    # cursor / windsurf / generic: same mcpServers shape, different homes
+    homes = {"cursor": os.path.expanduser("~/.cursor/mcp.json"),
+             "windsurf": os.path.expanduser("~/.codeium/windsurf/mcp_config.json"),
+             "generic": "<your-client-mcp-config.json>"}
+    cfg = {"mcpServers": {"omnirecon": entry}}
+    return {"action": "merge",
+            "path": homes[client],
+            "content": cfg,
+            "note": f"Merge mcpServers into {homes[client]}, then restart {client}."}
 
 
 def main(argv=None) -> int:

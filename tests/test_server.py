@@ -220,3 +220,24 @@ def test_stdio_mcp_protocol_end_to_end():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def test_setup_generates_valid_config():
+    from omnirecon import cli as CLI
+    ap = CLI.build_parser()
+    for client in ["claude-code", "codex", "cursor", "windsurf", "zed", "generic"]:
+        args = ap.parse_args(["setup", client])
+        res = args.func(args)
+        assert "error" not in res, (client, res)
+        assert res["action"] in ("run", "write", "append", "merge"), res
+        content = res["content"]
+        # every variant must carry a real, existing python + server.py
+        import os
+        if isinstance(content, dict):
+            entry = content.get("mcpServers", {}).get("omnirecon") or \
+                content.get("context_servers", {}).get("omnirecon")
+            assert entry, (client, content)
+            assert os.path.isfile(entry["command"]), entry["command"]
+            assert os.path.isfile(entry["args"][0]), entry["args"]
+        else:
+            assert "omnirecon" in content, (client, content)

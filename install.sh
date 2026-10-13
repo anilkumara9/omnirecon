@@ -75,6 +75,7 @@ if ls ~/.cache/ms-playwright/chromium_headless_shell-* >/dev/null 2>&1 \
     ok "Playwright Chromium already installed — skipping download"
 else
     info "downloading Playwright Chromium (~300MB, one-time) ..."
+    info "this is the slow step — grab a coffee, it resumes cleanly if interrupted."
     "$PLAYWRIGHT" install chromium \
         || fail "Chromium download failed — check your network/proxy and re-run ./install.sh"
     ok "Chromium installed"
@@ -97,22 +98,13 @@ ok "OmniRecon installed — $TOOL_COUNT MCP tools available"
 # -- next steps --------------------------------------------------------------
 cat <<EOF
 
-  Installation complete. Connect your agent:
+  Installation complete. Connect your agent with zero path mistakes:
 
-  Claude Code:
-    claude mcp add omnirecon -- $PY $REPO_ROOT/omnirecon/server.py
-
-  Codex CLI (~/.codex/config.toml):
-    [mcp_servers.omnirecon]
-    command = "$PY"
-    args = ["$REPO_ROOT/omnirecon/server.py"]
-
-  Cursor / Windsurf / Zed: register a stdio server with
-    command: $PY
-    args:    ["$REPO_ROOT/omnirecon/server.py"]
+    $PY -m omnirecon.cli setup claude-code   # or: codex, cursor, windsurf, zed, generic
 
   No MCP client? Use the terminal instead:
     $PY -m omnirecon.cli recon-start https://example.com --mode fast
 
+  Note: browser tools take 30-60s per page (real Chromium) — that's normal.
   Full guide: $REPO_ROOT/README.md ("Connecting your agent")
 EOF
