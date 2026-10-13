@@ -18,3 +18,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Personal working docs (not part of the project)
+LAUNCH_DRAFTS.md

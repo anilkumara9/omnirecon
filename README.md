@@ -15,14 +15,10 @@
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
 
-<p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>get back a reconstruction blueprint where every claim traces to evidence.
-OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL, an
-API doc, a codebase, or a shipped binary/APK and it runs an autonomous recon
-pipeline: rapid fingerprinting, a real headless browser that crawls routes,
-clicks through workflows and captures live network traffic, source-code
-analysis — fusing everything into a classified evidence ledger, then generating
-a reconstruction blueprint where every claim traces back to the observation that
-produced it.
+<p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>it runs an autonomous recon pipeline (rapid fingerprinting, a real headless
+browser that crawls routes, clicks through workflows and captures live network
+traffic, source analysis) and returns a reconstruction blueprint where every
+claim traces to the evidence that produced it. Nothing is ever invented.</p>
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://developers.openai.com/codex), Cursor, Windsurf, Zed, and any
@@ -47,9 +43,11 @@ other MCP-compatible agent or IDE.
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
 - [The 21 tools](#the-21-tools)
+- [UI reverse engineering](#ui-reverse-engineering-designer-grade)
+- [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
-- [Agent workflow example](#agent-workflow-example)
+- [Agent workflow](#agent-workflow)
 - [Evidence model](#evidence-model)
 - [Measured accuracy](#measured-accuracy)
 - [Security boundaries](#security-boundaries)
@@ -241,7 +239,8 @@ OmniRecon is a **stdio MCP server**: one Python process, no ports, no daemons.
 Every integration below registers the same thing — the Python interpreter from
 your virtualenv running `omnirecon/server.py`. Replace `/path/to/omnirecon`
 with your clone location and use the venv Python (not system Python), so the
-pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve.
+pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve. Restart the
+agent/IDE after registering.
 
 ### Claude Code (CLI)
 
@@ -343,7 +342,7 @@ scripts, CI, or agents without MCP:
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
 interchangeable — start in one, continue in the other.
 
-### Agent workflow
+## Agent workflow
 
 Once connected, the agent follows the bundled skill
 ([`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)) — a staged workflow
@@ -360,10 +359,8 @@ it reads itself:
 5. Build, then `recon_compare_build` — diff the rebuild against the original
    and iterate until parity.
 
-Restart the agent after registering, then just ask:
-*"Reverse-engineer https://example.com — explain how it works and give me a rebuild plan."*
-
-## Agent workflow example
+Just ask: *"Reverse-engineer https://example.com — explain how it works and
+give me a rebuild plan."* A typical session looks like:
 
 ```
 user:  Reverse-engineer https://shop.example.com and plan a rebuild.
@@ -413,7 +410,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 |---|---|
 | Hand-annotated 3-page fixture | 3/3 routes, 2/2 JS API endpoints vs ground truth |
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
-| example.com | First report in ~3s |
+| Demo SaaS teardown | 36 findings, 5 pages, 5 API endpoints, design tokens, 3-viewport screenshots — [full session committed](examples/teardown-acme-metrics/) |
 
 158 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
@@ -435,17 +432,22 @@ in [`benchmarks/results/`](benchmarks/results/).
 ## Project layout
 
 ```
-omnirecon/            the 20-module package (server, evidence, session,
+omnirecon/            the 22-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
 tests/                pytest suite (158 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
+examples/             committed teardown sessions (proof, not docs)
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-cli.py                argparse CLI mirroring all 21 MCP tools
+install.sh            one-command installer (venv + deps + Chromium + verify)
+requirements.txt      pinned dependencies (mcp<2)
+.github/workflows/    CI: full pytest suite on every push/PR
+CHANGELOG.md          version history
+CONTRIBUTING.md       contributor guide
+SECURITY.md           security policy and §8 boundaries
 ARCHITECTURE.md       module map and design decisions
 REA_INSPECTION.md     REA teardown and the evidence-based comparison
-FINAL_REPORT_2026-10-12.md  build report
 ```
 
 ## Troubleshooting
@@ -459,8 +461,6 @@ FINAL_REPORT_2026-10-12.md  build report
   Chromium can't use the egress proxy at all (tunnel failures while curl
   works), run `scripts/proxy_relay.py` and point `HTTPS_PROXY` at
   `http://127.0.0.1:8899`.
-- **`Invalid port` errors from httpx** — fixed in-code: bracketed IPv6 literals
-  in `no_proxy` are sanitized at startup.
 - **DNS returns nothing** — direct UDP DNS may be blocked; the tool falls back
   to DNS-over-HTTPS automatically.
 - **Tool returns `{"error", …}`** — read `code` and `hint`; the server never
