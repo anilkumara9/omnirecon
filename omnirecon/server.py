@@ -528,10 +528,13 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
                                             session_id, mgr)
             pid = page.get("page_id")
             snap = browser.snapshot(pid)
+            # Screenshots live in the session dir (persistent), not /tmp.
+            artifacts_dir = str(SESSIONS_ROOT / session_id / "artifacts")
             shots = {}
             for vp in ("desktop", "tablet", "mobile"):
                 try:
-                    shots[vp] = browser.screenshot(pid, viewport=vp)
+                    shots[vp] = browser.screenshot(pid, viewport=vp,
+                                                   artifacts_dir=artifacts_dir)
                 except Exception:
                     pass
             console = browser.console_errors(pid)
@@ -561,6 +564,14 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
             "console errors captured from the live page",
             sources=[url], route=url,
             limitations="errors observed at load; interaction-triggered errors not covered"))
+    for vp, path in shots.items():
+        if path:
+            items.append(_finding(
+                "asset", f"Screenshot ({vp}) of {url}",
+                f"rendered {vp} viewport capture",
+                "OBSERVED", 0.95, "screenshot taken in owned browser",
+                sources=[url], route=snap.get("url", url), artifact=path,
+                engine="rendered"))
     ids = _ledger_add(session_id, mgr, items)
     _audit(session_id, "inspect_page", url)
     return {"url": snap.get("url", url), "mode": "browser",

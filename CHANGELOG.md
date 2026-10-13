@@ -5,7 +5,7 @@ All notable changes to OmniRecon. Dates are commit dates (UTC).
 ## Unreleased
 
 - Test suite converted to pytest-native (`setup_module`/`teardown_module`);
-  158/158 green under plain `pytest tests/`.
+  163/163 green under plain `pytest tests/` (verified 2026-10-13).
 - README contradictions fixed: security section describes the authenticated-recon
   model accurately; test counts state the verified number.
 - `verify_consistency` normalizes endpoints/routes before cross-engine
