@@ -292,54 +292,113 @@ def _auth_boundaries(findings: list[dict]) -> dict:
 
 def _functional_requirements(findings: list[dict]) -> dict:
     bullets = []
+    routes = [f for f in _by_type(findings, "route") if f.get("route")]
+    # Page-by-page build guidance, not robotic "serve route X".
+    for f in routes:
+        title = f.get("title", "")
+        detail = f.get("detail", "")
+        bullets.append(_b(
+            f"BUILD PAGE: {f.get('route')}"
+            + (f" (\u201c{title}\u201d)" if title else "")
+            + f".\nReproduce its structure: {detail[:200]}"
+            + "\nCheck the screenshots in visual_requirements for exact layout.",
+            [f.get("id")] if f.get("id") else [], "INFERRED", 0.65,
+            "page structure derived from observed route"))
     for f in _by_type(findings, "workflow"):
         bullets.append(_b(
-            f"Support the user journey: {f.get('title', '')}"
-            + (f" — {f.get('detail')}" if f.get("detail") else ""),
+            f"IMPLEMENT THIS USER FLOW: {f.get('title', '')}"
+            + (f" \u2014 {f.get('detail')}" if f.get("detail") else "")
+            + "\nEvery step must work end-to-end; test it in the browser.",
             [f.get("id")] if f.get("id") else [], "INFERRED", 0.6,
-            "requirement derived from an observed workflow"))
-    for f in _by_type(findings, "route"):
-        if f.get("route"):
-            bullets.append(_b(
-                f"Serve route {f.get('route')} with the recorded content and "
-                "navigation behavior.",
-                [f.get("id")] if f.get("id") else [], "INFERRED", 0.6,
-                "requirement derived from an observed route"))
+            "flow derived from observed workflow"))
     for f in _by_type(findings, "endpoint"):
         if f.get("endpoint"):
             bullets.append(_b(
-                f"Integrate endpoint {f.get('endpoint')} where the UI depends "
-                "on it; if the backend is unavailable, simulate it explicitly "
-                "and label the build 'frontend reconstruction'.",
-                [f.get("id")] if f.get("id") else [], "INFERRED", 0.55,
-                "requirement derived from an observed endpoint"))
+                f"WIRE UP: {f.get('endpoint')}\n"
+                "The UI calls this. Your rebuild must serve the same shape "
+                "(see api_inventory for the observed schema). If you cannot "
+                "reach the real backend, mock it with the recorded shape and "
+                "label the build 'frontend reconstruction'.",
+                [f.get("id")] if f.get("id") else [], "INFERRED", 0.6,
+                "endpoint the UI depends on"))
     if not bullets:
         bullets.append(_b(
-            "No functional requirements can be stated — no routes, workflows, "
+            "No functional requirements can be stated \u2014 no routes, workflows, "
             "or endpoints are evidenced. Requirements are BLOCKED on analysis.",
             [], "BLOCKED", 1.0, "no actionable findings in the ledger"))
     return _section("functional_requirements", bullets,
-                    note="Derived requirements; each is only as strong as its evidence.")
+                    note="Build order: pages first, then flows, then API wiring. "
+                         "Verify each against recon_compare_build.")
 
 
 def _visual_requirements(findings: list[dict]) -> dict:
     shots = [f for f in findings
              if str(f.get("artifact") or "").endswith(
                  (".png", ".jpg", ".jpeg", ".webp"))]
-    bullets = [_b(
-        f"Match the captured visual reference {f.get('artifact')} "
-        f"({f.get('title', '')}).",
-        [f.get("id")] if f.get("id") else [],
-        f.get("classification", "OBSERVED"), f.get("confidence", 0.7),
-        "screenshot artifact on file") for f in shots]
+    bullets = []
+    # 1. Screenshot references — the agent MUST study these before building.
+    for f in shots:
+        bullets.append(_b(
+            f"STUDY THIS SCREENSHOT BEFORE BUILDING: {f.get('artifact')} "
+            f"({f.get('title', '')}). Match layout, spacing, colors, and "
+            f"typography to what you see \u2014 not to your defaults.",
+            [f.get("id")] if f.get("id") else [],
+            f.get("classification", "OBSERVED"), 0.95,
+            "screenshot artifact on file"))
+    # 2. Design tokens as copy-paste CSS variables.
+    for f in _by_type(findings, "tech"):
+        if "Design tokens:" in str(f.get("title", "")):
+            css = _tokens_to_css(f.get("detail", ""))
+            if css:
+                bullets.append(_b(
+                    "USE THIS DESIGN SYSTEM \u2014 start your CSS with these "
+                    f"variables, do not invent your own palette:\n{css}",
+                    [f.get("id")] if f.get("id") else [],
+                    "OBSERVED", 0.9,
+                    "computed styles sampled from rendered elements"))
+    # 3. Component variants with exact values.
+    for f in _by_type(findings, "component"):
+        if "Visual signature" in str(f.get("detail", "")):
+            bullets.append(_b(
+                f"REBUILD THIS COMPONENT EXACTLY: {f.get('title', '')} \u2014 "
+                f"{f.get('detail', '')}",
+                [f.get("id")] if f.get("id") else [],
+                "OBSERVED", 0.9,
+                "grouped by computed-style signature"))
     if not bullets:
         bullets.append(_b(
             "No visual references captured. Layout, typography, spacing, and "
-            "responsive behavior are UNVERIFIED — screenshots at desktop, "
+            "responsive behavior are UNVERIFIED \u2014 screenshots at desktop, "
             "tablet, and mobile viewports are needed before visual fidelity "
             "can be specified.",
             [], "UNVERIFIED", 1.0, "no screenshot artifacts in the ledger"))
-    return _section("visual_requirements", bullets)
+    return _section("visual_requirements", bullets,
+                    note="Designer handoff: study screenshots, use the design "
+                         "system variables, rebuild components to spec.")
+
+
+def _tokens_to_css(detail: str) -> str:
+    """Convert a design-tokens finding detail into CSS variables."""
+    import re
+    lines = [":root {"]
+    colors = re.findall(r"rgb\(\d+, \d+, \d+\)", detail)
+    seen = set()
+    for c in colors:
+        if c not in seen and len(seen) < 8:
+            seen.add(c)
+            lines.append(f"  --color-{len(seen)}: {c};")
+    m = re.search(r"Fonts: ([^\n]+)", detail)
+    if m:
+        fonts = [f.strip() for f in m.group(1).split(",")[:3] if f.strip()]
+        if fonts:
+            lines.append(f"  --font-family: {', '.join(fonts)}, sans-serif;")
+    m = re.search(r"Radii: ([^\n]+)", detail)
+    if m and "sharp" not in m.group(1):
+        radii = [r.strip() for r in m.group(1).split(",")[:3] if r.strip()]
+        for i, r in enumerate(radii, 1):
+            lines.append(f"  --radius-{i}: {r};")
+    lines.append("}")
+    return "\n".join(lines) if len(lines) > 2 else ""
 
 
 def _edge_cases(findings: list[dict]) -> dict:
