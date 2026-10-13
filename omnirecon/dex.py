@@ -37,6 +37,7 @@ _MAX_CLASSES_OUT = 100
 _MAX_INTERESTING_TOTAL = 200
 _MAX_INTERESTING_PER_CAT = 50
 _MAX_DEX_PER_APK = 8
+_MAX_DEX_BYTES = 256 * 1024 * 1024  # zip-bomb/DoS guard per DEX file
 
 # category -> regexes matched against "Lpkg/Cls;->method(params)ret"
 _INTERESTING_APIS: list[tuple[str, list[str]]] = [
@@ -306,6 +307,9 @@ def parse_apk_dex(apk_path: str) -> list[dict]:
             if re.fullmatch(r"classes\d*\.dex", name):
                 p = os.path.join(apk_path, name)
                 try:
+                    if os.path.getsize(p) > _MAX_DEX_BYTES:
+                        items.append((name, p, None))  # oversize: skip
+                        continue
                     with open(p, "rb") as fh:
                         items.append((name, p, fh.read()))
                 except OSError:
@@ -317,6 +321,11 @@ def parse_apk_dex(apk_path: str) -> list[dict]:
                                if re.fullmatch(r"classes\d*\.dex", n))
                 for name in names[:_MAX_DEX_PER_APK]:
                     try:
+                        # zip-bomb guard: check uncompressed size first
+                        info = z.getinfo(name)
+                        if info.file_size > _MAX_DEX_BYTES:
+                            items.append((name, f"{apk_path}!{name}", None))
+                            continue
                         items.append((name, f"{apk_path}!{name}",
                                       z.read(name)))
                     except Exception:

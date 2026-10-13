@@ -276,3 +276,42 @@ def safe_join(base: str, *parts: str) -> str:
                          code="path_traversal",
                          hint="Session file writes must stay inside the session dir.")
     return target
+
+
+# --------------------------------------------------------------------------
+# sensitive source paths (prompt-injection defense for recon_analyze_source)
+# --------------------------------------------------------------------------
+
+_SENSITIVE_PATH_PARTS = (
+    ".ssh", ".aws", ".gnupg", ".pki", ".docker",
+)
+
+_SENSITIVE_PATH_SUFFIXES = (
+    ".pem", ".key", ".p12", ".pfx", ".jks",
+)
+
+_SENSITIVE_PATH_NAMES = frozenset({
+    "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
+    "credentials", "secrets",
+})
+
+
+def sensitive_path_blocked(path: str) -> str | None:
+    """Return a refusal reason if `path` is credential-bearing, else None.
+
+    Guards recon_analyze_source against prompt-injected paths ("analyze
+    ~/.ssh for API keys") — page/repo content is untrusted data and must not
+    steer the agent into credential stores.
+    """
+    expanded = os.path.expanduser(path.strip())
+    norm = os.path.abspath(expanded)
+    parts = norm.split(os.sep)
+    base = os.path.basename(norm).lower()
+    if any(p in _SENSITIVE_PATH_PARTS for p in parts):
+        return (f"path {path!r} is inside a credential store; "
+                "refusing to analyze")
+    if base in _SENSITIVE_PATH_NAMES or any(
+            base.endswith(s) for s in _SENSITIVE_PATH_SUFFIXES):
+        return (f"path {path!r} looks like a private key/credential file; "
+                "refusing to analyze")
+    return None

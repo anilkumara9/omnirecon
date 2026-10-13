@@ -239,6 +239,28 @@ def test_interact_fill_password_no_leak():
     assert "never captured" in res["note"], res["note"]
 
 
+def test_resolve_target_password_no_leak():
+    # _resolve_target is a second el.value capture path (distinct from the
+    # snapshot JS): the resolved control NAME must never contain a typed
+    # password, since it lands in interact results and refusal messages.
+    pid = page_id_for(DATA_URL)
+    B.interact(pid, {"kind": "fill", "selector": "input[name=pw]",
+                     "value": "s3cr3t-resolve-path"})
+    sel, name, tag = B._run(_resolve(pid, "input[name=pw]"))
+    assert "s3cr3t" not in name, f"password leaked via _resolve_target: {name!r}"
+    # non-secret inputs still resolve their values
+    sel2, name2, _ = B._run(_resolve(pid, "input[name=q]"))
+    assert name2, "non-secret input name lost"
+
+
+def _resolve(pid, selector):
+    async def _go():
+        entry = B._impl._get_page_entry(pid)
+        return await B._impl._resolve_target(
+            entry, {"kind": "click", "selector": selector})
+    return _go()
+
+
 def test_console_errors():
     pid = page_id_for(DATA_URL)
     errs = B.console_errors(pid)

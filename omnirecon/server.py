@@ -77,7 +77,9 @@ def _redact(obj):
         try:
             return mod.redact(obj)
         except Exception:
-            return obj
+            # fail CLOSED: never return a possibly-secret object unredacted
+            return {"redacted": True,
+                    "note": "redaction failed; content withheld"}
     return obj
 
 
@@ -807,6 +809,17 @@ def recon_analyze_source(session_id: str, path_or_repo_url: str) -> dict:
     if not path_or_repo_url or not path_or_repo_url.strip():
         return _err("path_or_repo_url is required", "invalid_input", "")
 
+    # Sensitive-path guard: refuse credential-bearing locations unless the
+    # operator explicitly opts in (defends against prompt-injected paths like
+    # "analyze ~/.ssh for API keys" — page content is untrusted data).
+    target = path_or_repo_url.strip()
+    if not (target.startswith("http://") or target.startswith("https://")
+            or target.startswith("git@")):
+        blocked = SEC.sensitive_path_blocked(target)
+        if blocked:
+            return _err(f"refused: {blocked}", "sensitive_path",
+                        "set allow_sensitive_paths=True to override")
+
     smod, _ = _lane("source_intel")
     used_lane = smod is not None and hasattr(smod, "analyze")
     try:
@@ -1403,9 +1416,11 @@ def recon_authenticate(session_id: str, login_url: str, username: str,
         pass
     _audit(session_id, "authenticate",
            f"{login_url} ok={result.get('ok')}")
-    # never return the password; never echo it
+    # never return the password; redact the evidence (post-login landing URLs
+    # can carry OAuth codes/tokens — the ledger copy is redacted centrally,
+    # but this direct tool return bypasses it)
     return {"session_id": session_id, "ok": result.get("ok"),
-            "evidence": result.get("evidence", []),
+            "evidence": _redact(result.get("evidence", [])),
             "cookies_saved": result.get("cookies_saved", 0),
             "note": "password was used transiently and not stored"}
 

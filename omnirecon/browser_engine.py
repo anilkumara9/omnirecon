@@ -790,8 +790,13 @@ class AsyncOwnedBrowser:
         try:
             name = await page.eval_on_selector(
                 selector,
-                "(el) => (el.getAttribute('aria-label') || (el.innerText||'').trim() "
-                "|| el.value || el.placeholder || '').slice(0,120)")
+                "(el) => {"
+                " const t=(el.getAttribute('type')||'').toLowerCase();"
+                " const secret=t==='password'||el.getAttribute('data-secret')!==null"
+                "   ||/passw|secret|token/i.test(el.getAttribute('name')||'');"
+                " const val=secret?'':(el.value||'');"
+                " return (el.getAttribute('aria-label')||(el.innerText||'').trim()"
+                "   ||val||el.placeholder||'').slice(0,120); }")
             tag = await page.eval_on_selector(
                 selector, "(el) => el.tagName.toLowerCase()")
         except Exception:

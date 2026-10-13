@@ -32,7 +32,8 @@ def _sessions_dir() -> str:
 
 
 def cookie_path(session_id: str) -> str:
-    return os.path.join(_sessions_dir(), session_id, "cookies.json")
+    # safe_join: a hostile/crafted session_id must never escape sessions/
+    return SEC.safe_join(_sessions_dir(), session_id, "cookies.json")
 
 
 def save_cookies(session_id: str, cookies: list[dict]) -> int:
