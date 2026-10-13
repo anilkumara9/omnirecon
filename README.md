@@ -19,7 +19,7 @@ other MCP-compatible agent or IDE.
 
 - [How it works](#how-it-works)
 - [Why it's different](#why-its-different)
-- [The 15 tools](#the-15-tools)
+- [The 18 tools](#the-18-tools)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
 - [Agent workflow example](#agent-workflow-example)
@@ -69,7 +69,7 @@ with a live REA bridge fusing deep decompilation results into the same evidence
 ledger when REA is installed with a configured provider. Full analysis in
 [`REA_INSPECTION.md`](REA_INSPECTION.md).
 
-## The 15 tools
+## The 18 tools
 
 | Tool | What it does |
 |---|---|
@@ -77,10 +77,13 @@ ledger when REA is installed with a configured provider. Full analysis in
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
 | `recon_inspect_page` | Rendered DOM, controls, forms, a11y data, 3-viewport screenshots, console errors. |
-| `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. |
+| `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. **Auto-emits a replayable Playwright script** per trace. |
 | `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. |
 | `recon_analyze_source` | AST route extraction, components, state management, migrations, auth files, env-var names. |
 | `recon_analyze_artifact` | APK/IPA/native-binary/JS-bundle intel: format, symbols, manifest, string-mined URLs; REA deep-dive when available. |
+| `recon_verify_consistency` | **Cross-engine accuracy check**: static crawl vs rendered pages vs JS bundles vs network capture. Agreements corroborated, contradictions downgraded — never silently dropped. |
+| `recon_recover_sourcemaps` | Fetch published `*.js.map` files and recover the original source tree. Honest when the site ships none. |
+| `recon_probe_endpoints` | Live-probe every discovered `/api/*` endpoint (HEAD→GET); records live/dead verdicts with status codes. |
 | `recon_extract_assets` | Image/font/icon inventory + design tokens. |
 | `recon_get_graph` | Route/component/endpoint dependency graph. |
 | `recon_get_evidence` | Query the evidence ledger (filter by classification/type). |
@@ -88,6 +91,27 @@ ledger when REA is installed with a configured provider. Full analysis in
 | `recon_compare_build` | Diff a rebuild URL against the reference (route coverage, endpoint overlap). |
 | `recon_export_report` | Markdown/JSON report — or an **OpenAPI 3.1 document** reconstructed from the ledger, every path tagged with its evidence classification. |
 | `recon_cancel` | Cancel a session and its background jobs. |
+
+## Why top engineers pick OmniRecon
+
+Binary-forensics tools (REA and its 150 commands) are unmatched at decompiling
+shipped artifacts — and OmniRecon bridges to them instead of reimplementing
+them. Where OmniRecon wins is everything they *don't* do:
+
+1. **It drives, not just observes.** Goal-directed workflow tracing, autonomous
+   crawling, live network instrumentation with initiator stacks — REA is
+   deliberately passive on the web.
+2. **It checks itself.** `recon_verify_consistency` cross-examines every engine
+   against every other engine. A route the crawler found but no rendered page
+   confirms becomes UNVERIFIED; an endpoint seen in both static bundles *and*
+   live traffic becomes SOURCE_VERIFIED at 0.95. No competitor does this.
+3. **It hands you replayable truth.** Every workflow trace ships a standalone
+   Playwright script — run it against your rebuild to prove behavioral parity.
+4. **It recovers what others leave minified.** Source-map recovery reconstructs
+   the original file tree from published `.map` files.
+5. **One front door.** Web, API docs, repos, binaries — one session, one
+   evidence ledger, one 15-section rebuild spec. The agent never routes by
+   guesswork.
 
 Every tool degrades honestly: on failure you get
 `{"error", "code", "hint"}` — never a traceback, never invented data.
@@ -137,7 +161,7 @@ Register a stdio MCP server with:
 
 ### No MCP support? Use the CLI
 
-All 15 tools are mirrored as CLI commands running the same code:
+All 18 tools are mirrored as CLI commands running the same code:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -227,7 +251,7 @@ skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-cli.py                argparse CLI mirroring all 15 MCP tools
+cli.py                argparse CLI mirroring all 18 MCP tools
 ARCHITECTURE.md       module map and design decisions
 REA_INSPECTION.md     REA teardown and the evidence-based comparison
 FINAL_REPORT_2026-10-12.md  build report

@@ -90,6 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path")
     p.set_defaults(func=lambda a: SRV.recon_analyze_artifact(a.session, a.path))
 
+    p = sub.add_parser("recon-verify-consistency", help="Cross-check findings between engines.")
+    _add_session_arg(p)
+    p.set_defaults(func=lambda a: SRV.recon_verify_consistency(a.session))
+
+    p = sub.add_parser("recon-recover-sourcemaps", help="Recover original source tree from .js.map files.")
+    _add_session_arg(p)
+    p.add_argument("page_url")
+    p.set_defaults(func=lambda a: SRV.recon_recover_sourcemaps(a.session, a.page_url))
+
+    p = sub.add_parser("recon-probe-endpoints", help="Live-probe discovered API endpoints.")
+    _add_session_arg(p)
+    p.add_argument("--base-url", default="")
+    p.set_defaults(func=lambda a: SRV.recon_probe_endpoints(a.session, a.base_url))
+
     p = sub.add_parser("recon-extract-assets", help="Inventory images, fonts, design tokens.")
     _add_session_arg(p)
     p.add_argument("url")

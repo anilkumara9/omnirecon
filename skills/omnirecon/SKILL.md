@@ -53,6 +53,9 @@ use the first row that fits.
 | Site + repo (both available) | `recon_start` on URL, then `recon_analyze_source` in the same session | `recon_get_graph` fuses both; contradictions resolve toward SOURCE_VERIFIED |
 | Public API (OpenAPI/Swagger doc) | `recon_start` with the spec URL | 20/20 paths inventoried on the petstore reference; `recon_export_report` (openapi) emits a rebuildable spec |
 | APK / native binary / JS bundle | `recon_start` with the file path (or `recon_analyze_artifact`) | Structural intel + string-mined URLs; REA deep-dive fused automatically when a provider is configured; BLOCKED otherwise — never invented |
+| Any multi-engine session | `recon_verify_consistency` before `recon_generate_spec` | Corroborated findings get SOURCE_VERIFIED; contradictions downgraded with reasons — this is the accuracy step |
+| JS-heavy SPA, need original sources | `recon_recover_sourcemaps` | Recovers the webpack/vite/parcel file tree from published .map files |
+| API surface needs live truth | `recon_probe_endpoints` | HEAD→GET per discovered /api/* endpoint; live/dead verdicts with status codes |
 | Native binary / APK / firmware | STOP — use REA, not OmniRecon | Feed REA's findings back as cited evidence if you continue here |
 
 If the target doesn't match any row, ask the user what it is before burning

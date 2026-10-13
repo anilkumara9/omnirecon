@@ -668,7 +668,16 @@ def recon_trace_workflow(session_id: str, start_url: str, goal: str,
     ids = _ledger_add(session_id, mgr, items)
     _audit(session_id, "trace_workflow",
            f"{start_url} goal={goal} steps={len(steps)}")
+    replay_path = None
+    try:
+        dmod, _ = _lane("deep_dive")
+        if dmod is not None and hasattr(dmod, "save_replay_script") and steps:
+            replay_path = dmod.save_replay_script(
+                session_id, steps, start_url, goal)
+    except Exception:
+        replay_path = None
     return {"goal": goal, "steps": steps, "finding_ids": ids,
+            "replay_script": replay_path,
             "note": "only actions with observed DOM/URL/network effects are "
                     "marked OBSERVED; visible-but-untested controls are not "
                     "claimed to work"}
@@ -849,6 +858,97 @@ def recon_analyze_artifact(session_id: str, path: str) -> dict:
     except Exception:
         pass
     _audit(session_id, "analyze_artifact", path)
+    return result
+
+
+@mcp.tool()
+def recon_verify_consistency(session_id: str) -> dict:
+    """Cross-check findings between engines (static crawl vs rendered pages
+    vs JS bundles vs network capture). Agreements are corroborated;
+    contradictions are downgraded to UNVERIFIED/INFERRED with reasons —
+    never silently dropped. This is the accuracy multiplier."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    dmod, derr = _lane("deep_dive")
+    if derr or not hasattr(dmod, "verify_consistency"):
+        return _err("consistency verification is unavailable", "unavailable",
+                    "omnirecon.deep_dive is not available in this deployment")
+    try:
+        result = dmod.verify_consistency(session_id)
+    except Exception as e:  # noqa: BLE001
+        return _err("consistency verification failed", "internal", str(e)[:300])
+    try:
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "verify_consistency",
+           f"agreements={result.get('agreements')} "
+           f"contradictions={result.get('contradictions')}")
+    return result
+
+
+@mcp.tool()
+def recon_recover_sourcemaps(session_id: str, page_url: str) -> dict:
+    """Fetch published *.js.map files for a page's scripts and recover the
+    original source tree (webpack/parcel/vite paths). Reports honestly when
+    the site ships no maps."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not page_url or not page_url.strip():
+        return _err("page_url is required", "invalid_input", "")
+    dmod, derr = _lane("deep_dive")
+    if derr or not hasattr(dmod, "recover_sourcemaps"):
+        return _err("source-map recovery is unavailable", "unavailable",
+                    "omnirecon.deep_dive is not available in this deployment")
+    try:
+        result = dmod.recover_sourcemaps(session_id, page_url.strip())
+    except Exception as e:  # noqa: BLE001
+        return _err("source-map recovery failed", "internal", str(e)[:300])
+    try:
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "recover_sourcemaps",
+           f"{page_url} maps={len(result.get('maps_found', []))}")
+    return result
+
+
+@mcp.tool()
+def recon_probe_endpoints(session_id: str, base_url: str = "") -> dict:
+    """Live-probe every discovered /api/* endpoint (HEAD then GET) and record
+    live/dead verdicts with status codes. Auth-walled (401/403) counts as
+    live-but-guarded. Turns INFERRED endpoints into OBSERVED ones."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    target = (base_url or "").strip() or session.get("target", "")
+    if not target:
+        return _err("base_url is required", "invalid_input", "")
+    dmod, derr = _lane("deep_dive")
+    if derr or not hasattr(dmod, "probe_endpoints"):
+        return _err("endpoint probing is unavailable", "unavailable",
+                    "omnirecon.deep_dive is not available in this deployment")
+    try:
+        result = dmod.probe_endpoints(session_id, target)
+    except Exception as e:  # noqa: BLE001
+        return _err("endpoint probing failed", "internal", str(e)[:300])
+    try:
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "probe_endpoints",
+           f"{target} live={result.get('live')} dead={result.get('dead')}")
     return result
 
 
