@@ -404,6 +404,15 @@ class SessionManager:
         sdir = self._sdir(sid)
         ledger = self.ledger(sid)
         ev_path = os.path.join(sdir, "evidence.jsonl")
+        # Merge, don't clobber: modules that write findings directly to the
+        # file (bypassing this cache) must not lose their findings when we
+        # checkpoint. Absorb anything in the file that the cache lacks.
+        if os.path.exists(ev_path):
+            try:
+                file_ledger = EvidenceLedger.load(ev_path)
+                ledger.merge_from(file_ledger)
+            except Exception:
+                pass
         ledger.save(ev_path)
         graph = build_graph(ledger, target=stored.get("target"))
         graph_path = os.path.join(sdir, "graph.json")

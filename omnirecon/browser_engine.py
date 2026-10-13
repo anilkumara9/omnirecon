@@ -63,16 +63,10 @@ _SENSITIVE_KEY_RE = re.compile(
 )
 
 
-class ReconError(Exception):
-    """Raised for every operational failure. Never leaks tracebacks to callers."""
-
-    def __init__(self, code: str, message: str, hint: str = ""):
-        super().__init__(message)
-        self.code = code
-        self.hint = hint
-
-    def to_dict(self) -> dict:
-        return {"error": str(self), "code": self.code, "hint": self.hint}
+# Unified with omnirecon.security.ReconError (message, code, hint).
+# All raise sites below were mechanically converted from the old
+# (code, message) ordering on 2026-10-13.
+from omnirecon.security import ReconError
 
 
 # ---------------------------------------------------------------------------
@@ -176,10 +170,7 @@ def _ensure_chromium() -> None:
                  f"{_CFT_BASE}/{zipname}"],
                 capture_output=True, timeout=1560)
             if r.returncode != 0 or not os.path.isfile(zpath):
-                raise ReconError(
-                    "browser_download_failed",
-                    f"could not download {zipname} (curl exit {r.returncode})",
-                    "check network/proxy, or run "
+                raise ReconError(f"could not download {zipname} (curl exit {r.returncode})", "browser_download_failed", "check network/proxy, or run "
                     "`playwright install chromium` manually")
             os.makedirs(dest, exist_ok=True)
             shutil.unpack_archive(zpath, dest)
@@ -199,10 +190,7 @@ def _ensure_chromium() -> None:
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     if not any(os.path.isfile(p) for p in _chromium_executables()):
-        raise ReconError(
-            "browser_missing",
-            "Chromium executable still missing after download attempt",
-            "run `playwright install chromium` manually")
+        raise ReconError("Chromium executable still missing after download attempt", "browser_missing", "run `playwright install chromium` manually")
 
 
 # ---------------------------------------------------------------------------
@@ -379,15 +367,12 @@ class AsyncOwnedBrowser:
         try:
             from playwright.async_api import async_playwright
         except ImportError as e:
-            raise ReconError("no_playwright",
-                             "playwright is not installed in the venv",
-                             "run: ~/workspace/venvs/recon/bin/pip install playwright") from e
+            raise ReconError("playwright is not installed in the venv", "no_playwright", "run: ~/workspace/venvs/recon/bin/pip install playwright") from e
         try:
             self._pw = await async_playwright().start()
             self._browser = await self._try_launch(headless)
         except Exception as e:
-            raise ReconError("launch_failed", f"could not launch Chromium: {e}"[:300],
-                             "run: ~/workspace/venvs/recon/bin/playwright install chromium") from e
+            raise ReconError(f"could not launch Chromium: {e}"[:300], "launch_failed", "run: ~/workspace/venvs/recon/bin/playwright install chromium") from e
         return {"ok": True, "headless": headless}
 
     async def _try_launch(self, headless: bool):
@@ -445,18 +430,16 @@ class AsyncOwnedBrowser:
 
     def _require_browser(self):
         if not self._browser:
-            raise ReconError("not_launched", "browser not launched",
-                             "call launch() first")
+            raise ReconError("browser not launched", "not_launched", "call launch() first")
 
     def _get_page_entry(self, page_id: int) -> dict:
         try:
             pid = int(page_id)
         except Exception:
-            raise ReconError("bad_page_id", f"invalid page_id: {page_id!r}")
+            raise ReconError(f"invalid page_id: {page_id!r}", "bad_page_id")
         entry = self._pages.get(pid)
         if not entry:
-            raise ReconError("bad_page_id", f"unknown page_id: {pid}",
-                             "page ids come from goto()")
+            raise ReconError(f"unknown page_id: {pid}", "bad_page_id", "page ids come from goto()")
         return entry
 
     def _proxy_config(self) -> dict | None:
@@ -501,9 +484,8 @@ class AsyncOwnedBrowser:
         """Navigate (new page unless page_id given). Returns page_id/url/title/status."""
         self._require_browser()
         if not re.match(r"^(https?|data):", url or "", re.IGNORECASE):
-            raise ReconError("bad_url",
-                             f"only http(s) and data: URLs are navigated: "
-                             f"{str(url)[:80]!r}")
+            raise ReconError(f"only http(s) and data: URLs are navigated: "
+                             f"{str(url)[:80]!r}", "bad_url")
         try:
             if page_id is None:
                 page, ctx = await self._new_page()
@@ -530,8 +512,7 @@ class AsyncOwnedBrowser:
         except ReconError:
             raise
         except Exception as e:
-            raise ReconError("navigation_failed",
-                             f"goto {url} failed: {e}"[:300]) from e
+            raise ReconError(f"goto {url} failed: {e}"[:300], "navigation_failed") from e
 
     def _attach_listeners(self, pid: int, entry: dict):
         page = entry["page"]
@@ -698,8 +679,7 @@ class AsyncOwnedBrowser:
         try:
             data = await page.evaluate(_SNAPSHOT_JS)
         except Exception as e:
-            raise ReconError("snapshot_failed",
-                             f"DOM snapshot failed: {e}"[:250]) from e
+            raise ReconError(f"DOM snapshot failed: {e}"[:250], "snapshot_failed") from e
         refs = {c["ref"]: c["selector"] for c in data["controls"]}
         entry["refs"] = refs
         data["url"] = page.url
@@ -714,8 +694,7 @@ class AsyncOwnedBrowser:
         """Viewport screenshot -> content-addressed PNG path (sha256.png)."""
         entry = self._get_page_entry(page_id)
         if viewport not in VIEWPORTS:
-            raise ReconError("bad_viewport",
-                             f"viewport must be one of {sorted(VIEWPORTS)}")
+            raise ReconError(f"viewport must be one of {sorted(VIEWPORTS)}", "bad_viewport")
         artifacts = artifacts_dir or self._tmp_artifacts
         os.makedirs(artifacts, exist_ok=True)
         page = entry["page"]
@@ -724,8 +703,7 @@ class AsyncOwnedBrowser:
             await page.set_viewport_size(VIEWPORTS[viewport])
             png = await page.screenshot(full_page=False, timeout=15000)
         except Exception as e:
-            raise ReconError("screenshot_failed",
-                             f"screenshot failed: {e}"[:250]) from e
+            raise ReconError(f"screenshot failed: {e}"[:250], "screenshot_failed") from e
         finally:
             try:
                 if prev:
@@ -753,8 +731,7 @@ class AsyncOwnedBrowser:
         try:
             await page.reload(wait_until="domcontentloaded", timeout=30000)
         except Exception as e:
-            raise ReconError("capture_failed",
-                             f"reload for capture failed: {e}"[:250]) from e
+            raise ReconError(f"reload for capture failed: {e}"[:250], "capture_failed") from e
         await page.wait_for_timeout(max(500, min(int(duration_ms), 30000)))
         # let async body captures settle
         await page.wait_for_timeout(1500)
@@ -795,11 +772,9 @@ class AsyncOwnedBrowser:
         if ref:
             selector = entry["refs"].get(ref)
             if not selector:
-                raise ReconError("bad_ref", f"unknown control ref {ref!r}",
-                                 "refs come from snapshot(); call snapshot() first")
+                raise ReconError(f"unknown control ref {ref!r}", "bad_ref", "refs come from snapshot(); call snapshot() first")
         if not selector:
-            raise ReconError("no_target",
-                             "action needs 'ref' (from snapshot) or 'selector'")
+            raise ReconError("action needs 'ref' (from snapshot) or 'selector'", "no_target")
         try:
             name = await page.eval_on_selector(
                 selector,
@@ -821,14 +796,11 @@ class AsyncOwnedBrowser:
         """
         entry = self._get_page_entry(page_id)
         if not isinstance(action, dict):
-            raise ReconError("bad_action", "action must be a dict")
+            raise ReconError("action must be a dict", "bad_action")
         kind = action.get("kind")
         if kind not in SAFE_ACTION_KINDS:
-            raise ReconError(
-                "invalid_action",
-                f"refused: action kind {kind!r} is not in the safe set "
-                f"{sorted(SAFE_ACTION_KINDS)} (no value extraction, no scripts)",
-                "password exfiltration and arbitrary JS are never allowed")
+            raise ReconError(f"refused: action kind {kind!r} is not in the safe set "
+                f"{sorted(SAFE_ACTION_KINDS)} (no value extraction, no scripts)", "invalid_action", "password exfiltration and arbitrary JS are never allowed")
         page = entry["page"]
 
         if kind == "scroll":
@@ -838,12 +810,9 @@ class AsyncOwnedBrowser:
 
         # destructive-action refusal (checked against accessible name + selector)
         if kind == "click" and _DESTRUCTIVE_RE.search(f"{name} {selector}"):
-            raise ReconError(
-                "refused",
-                f"refused: click target {name!r} looks destructive "
+            raise ReconError(f"refused: click target {name!r} looks destructive "
                 "(purchase/payment/deletion); consequential actions need "
-                "explicit user approval",
-                "use click only for navigation/UI exploration")
+                "explicit user approval", "refused", "use click only for navigation/UI exploration")
 
         # password fields: filling is legitimate (authorized test accounts),
         # but values are NEVER returned or stored
@@ -869,7 +838,7 @@ class AsyncOwnedBrowser:
             elif kind == "fill":
                 value = action.get("value", "")
                 if not isinstance(value, str):
-                    raise ReconError("bad_action", "fill needs a string 'value'")
+                    raise ReconError("fill needs a string 'value'", "bad_action")
                 await page.fill(selector, value, timeout=8000)
             elif kind == "select":
                 value = action.get("value", "")
@@ -880,8 +849,7 @@ class AsyncOwnedBrowser:
         except ReconError:
             raise
         except Exception as e:
-            raise ReconError("action_failed",
-                             f"{kind} on {selector!r} failed: {e}"[:300]) from e
+            raise ReconError(f"{kind} on {selector!r} failed: {e}"[:300], "action_failed") from e
 
         await page.wait_for_timeout(900)
         url_after = page.url
@@ -930,8 +898,7 @@ class AsyncOwnedBrowser:
                 pixels = abs(pixels)
             await page.mouse.wheel(0, pixels)
         except Exception as e:
-            raise ReconError("action_failed",
-                             f"scroll failed: {e}"[:250]) from e
+            raise ReconError(f"scroll failed: {e}"[:250], "action_failed") from e
         await page.wait_for_timeout(900)
         return {
             "observed": True,  # scroll itself executed; content change unknown
@@ -958,8 +925,7 @@ class AsyncOwnedBrowser:
         try:
             from omnirecon import recon_primitives as RP
         except Exception as e:
-            raise ReconError("no_primitives",
-                             f"recon_primitives unavailable: {e}") from e
+            raise ReconError(f"recon_primitives unavailable: {e}", "no_primitives") from e
 
         static = RP.crawl_site(start_url, max_pages=max_pages,
                                max_depth=max_depth)
@@ -1042,11 +1008,9 @@ class _LoopThread:
                                         name="omnirecon-browser-loop")
         self._thread.start()
         if not self._ready.wait(30):
-            raise ReconError("loop_failed",
-                             "browser event-loop thread did not start")
+            raise ReconError("browser event-loop thread did not start", "loop_failed")
         if self._failed is not None:
-            raise ReconError("loop_failed",
-                             f"browser event-loop thread failed: {self._failed}")
+            raise ReconError(f"browser event-loop thread failed: {self._failed}", "loop_failed")
 
     def _run(self):
         try:
@@ -1066,9 +1030,7 @@ class _LoopThread:
         try:
             return fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError as e:
-            raise ReconError("timeout",
-                             f"browser operation timed out after {timeout}s",
-                             "the page may be hanging; try a smaller scope") from e
+            raise ReconError(f"browser operation timed out after {timeout}s", "timeout", "the page may be hanging; try a smaller scope") from e
 
     def stop(self):
         loop, self._loop = self._loop, None

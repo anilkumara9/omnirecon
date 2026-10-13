@@ -25,7 +25,7 @@ _CLASS_RANK = {
 
 FINDING_TYPES = frozenset({
     "route", "component", "endpoint", "entity", "workflow",
-    "asset", "auth", "tech", "state", "note",
+    "asset", "auth", "tech", "state", "note", "schema",
 })
 
 VERIFICATION_STATES = frozenset({"unverified", "verified", "contradicted"})
@@ -52,6 +52,8 @@ class Finding:
     timestamp: str = ""
     verification: str = "unverified"
     limitations: str = ""
+    engine: str | None = None         # which engine produced this finding:
+                                      # static|rendered|network|spec|binary
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -124,6 +126,7 @@ class EvidenceLedger:
             timestamp=_utcnow(),
             verification=verification,
             limitations=str(f.get("limitations", "")),
+            engine=f.get("engine"),
         )
         self._findings[finding.id] = finding
         return finding.id
@@ -166,6 +169,28 @@ class EvidenceLedger:
     def get(self, fid: str) -> dict | None:
         f = self._findings.get(fid)
         return f.to_dict() if f else None
+
+    def merge_from(self, other: "EvidenceLedger") -> int:
+        """Absorb findings from another ledger that this one lacks (by id).
+
+        Used by SessionManager.checkpoint() to pick up findings that modules
+        wrote directly to evidence.jsonl, bypassing the in-memory cache —
+        without this, checkpoint() would silently discard them. Returns the
+        number of findings absorbed. Also syncs the id counter past the
+        highest absorbed id to prevent id reuse collisions.
+        """
+        absorbed = 0
+        for fid, f in other._findings.items():
+            if fid not in self._findings:
+                self._findings[fid] = f
+                absorbed += 1
+                try:
+                    num = int(fid.split("-", 1)[1])
+                    if num > self._counter:
+                        self._counter = num
+                except (ValueError, IndexError):
+                    pass
+        return absorbed
 
     def list(self, type: str | None = None, classification: str | None = None,
              min_confidence: float = 0.0) -> list[dict]:

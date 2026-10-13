@@ -45,10 +45,10 @@ def test_consistency_corroborates_dual_engine_endpoints():
     sid = "test-consistency-2"
     _mk_session(sid, [
         {"type": "endpoint", "title": "e1", "endpoint": "/api/x",
-         "classification": "INFERRED",
+         "classification": "INFERRED", "engine": "static",
          "confidence_why": "static extraction from JS bundle"},
         {"type": "endpoint", "title": "e2", "endpoint": "/api/x",
-         "classification": "OBSERVED",
+         "classification": "OBSERVED", "engine": "network",
          "confidence_why": "observed in network capture"},
     ])
     res = DD.verify_consistency(sid)

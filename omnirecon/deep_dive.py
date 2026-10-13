@@ -82,10 +82,10 @@ def verify_consistency(session_id: str) -> dict:
                        and f.get("route")}
     endpoints_static = {f.get("endpoint") for f in findings
                         if f.get("type") == "endpoint" and f.get("endpoint")
-                        and "static" in str(f.get("confidence_why", "")).lower()}
+                        and f.get("engine") == "static"}
     endpoints_network = {f.get("endpoint") for f in findings
                          if f.get("type") == "endpoint" and f.get("endpoint")
-                         and "network" in str(f.get("confidence_why", "")).lower()}
+                         and f.get("engine") == "network"}
 
     agreements, contradictions = 0, 0
 

@@ -184,12 +184,13 @@ def _append_findings(session_id: str, items: list[dict]) -> list[str]:
 
 def _finding(ftype: str, title: str, detail: str = "", classification: str = "INFERRED",
              confidence: float = 0.5, why: str = "", sources=None, route=None,
-             component=None, endpoint=None, artifact=None, limitations="") -> dict:
+             component=None, endpoint=None, artifact=None, limitations="",
+             engine=None) -> dict:
     return {"type": ftype, "title": title, "detail": detail,
             "classification": classification, "confidence": confidence,
             "confidence_why": why, "sources": list(sources or []),
             "route": route, "component": component, "endpoint": endpoint,
-            "artifact": artifact, "limitations": limitations}
+            "artifact": artifact, "limitations": limitations, "engine": engine}
 
 
 def _open_browser(bmod):
@@ -483,7 +484,7 @@ def recon_discover_routes(session_id: str, max_pages: int = 40,
                 "endpoint", f"Endpoint {e['endpoint']}",
                 f"kind={e['kind']} scope={e['scope']} discovered across crawled pages",
                 "OBSERVED", 0.75, "endpoint literal found in crawled page/JS text",
-                sources=[target], endpoint=e["endpoint"]))
+                sources=[target], endpoint=e["endpoint"], engine="static"))
         ids = _ledger_add(session_id, mgr, items)
         try:
             mgr.update_stage(session_id, 3)
@@ -738,7 +739,7 @@ def recon_capture_network(session_id: str, url: str,
         "endpoint", f"Observed {r.get('method', 'GET')} {u}",
         f"status={r.get('status')} type={r.get('type')}",
         "OBSERVED", 0.95, "request actually issued by the page in the browser",
-        sources=[url], endpoint=u) for u, r in list(seen_eps.items())[:150]]
+        sources=[url], endpoint=u, engine="network") for u, r in list(seen_eps.items())[:150]]
     # values-free request/response shapes → schema findings (the keystone:
     # the agent gets data shapes, never example values)
     for u, r in list(seen_eps.items())[:150]:
@@ -1297,8 +1298,7 @@ def recon_export_report(session_id: str, format: str = "markdown") -> dict:
         elif format == "openapi":
             from omnirecon import api_intel as AI
             ledger = mgr.ledger(session_id)
-            findings = [f.to_dict() if hasattr(f, "to_dict") else dict(f)
-                        for f in ledger]
+            findings = ledger.list()
             doc = AI.ledger_to_openapi(
                 findings,
                 title=f"Reconstructed API — {session.get('target', session_id)}")
