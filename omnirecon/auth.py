@@ -165,9 +165,18 @@ async def perform_login(browser, page_id: int, session_id: str,
             f"new_cookies={new_cookies}",
             f"landed={after_url[:120]}",
         ]
-        result["ok"] = url_changed or pw_gone or logout_sig or bool(new_cookies)
-        # capture the authenticated cookies (password never persisted)
-        result["cookies_saved"] = save_cookies(session_id, after_cookies)
+        # Corroboration rule: a single weak signal (e.g. any new cookie —
+        # analytics/CSRF cookies appear on failed logins too) is not enough.
+        # url_changed alone is strong; otherwise require >= 2 signals.
+        signals = sum([url_changed, pw_gone, logout_sig])
+        result["ok"] = url_changed or signals >= 2 or (
+            logout_sig and bool(new_cookies))
+        if result["ok"]:
+            # capture the authenticated cookies (password never persisted);
+            # on failure the pre-login cookies are meaningless — don't save
+            result["cookies_saved"] = save_cookies(session_id, after_cookies)
+        else:
+            result["cookies_saved"] = 0
     except Exception as e:  # noqa: BLE001
         result["evidence"].append(f"login flow error: {str(e)[:200]}")
     return result

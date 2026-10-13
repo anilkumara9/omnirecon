@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 
@@ -54,6 +55,9 @@ class Finding:
     limitations: str = ""
     engine: str | None = None         # which engine produced this finding:
                                       # static|rendered|network|spec|binary
+    shape: dict | None = None         # machine-readable request/response
+                                      # shape (values-free, redacted)
+    shape_kind: str | None = None     # "request" | "response" | "websocket"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -70,6 +74,7 @@ class EvidenceLedger:
     def __init__(self):
         self._findings: dict[str, Finding] = {}
         self._counter = 0
+        self._lock = threading.Lock()
 
     # -- mutation ------------------------------------------------------
     def add(self, f: dict) -> str:
@@ -105,30 +110,35 @@ class EvidenceLedger:
             raise ReconError("confidence must be between 0.0 and 1.0",
                              code="invalid_confidence")
 
-        self._counter += 1
         # Central redaction: every finding is scrubbed before it becomes
         # durable ledger state, no matter which module recorded it. This is
         # the last line of defense — per-tool redaction at return boundaries
-        # is not sufficient on its own.
-        finding = Finding(
-            id=f"F-{self._counter:04d}",
-            type=ftype,
-            title=_redact_finding(str(f.get("title", ""))),
-            detail=_redact_finding(str(f.get("detail", ""))),
-            classification=classification,
-            confidence=confidence,
-            confidence_why=_redact_finding(str(f.get("confidence_why", ""))),
-            sources=list(f.get("sources") or []),
-            route=_redact_finding(f.get("route")) if f.get("route") else None,
-            component=_redact_finding(f.get("component")) if f.get("component") else None,
-            endpoint=_redact_finding(f.get("endpoint")) if f.get("endpoint") else None,
-            artifact=f.get("artifact"),
-            timestamp=_utcnow(),
-            verification=verification,
-            limitations=str(f.get("limitations", "")),
-            engine=f.get("engine"),
-        )
-        self._findings[finding.id] = finding
+        # is not sufficient on its own. sources[] and limitations are
+        # redacted too: captured URLs land in sources[] verbatim, and that
+        # is where query-param secrets live.
+        with self._lock:
+            self._counter += 1
+            finding = Finding(
+                id=f"F-{self._counter:04d}",
+                type=ftype,
+                title=_redact_finding(str(f.get("title", ""))),
+                detail=_redact_finding(str(f.get("detail", ""))),
+                classification=classification,
+                confidence=confidence,
+                confidence_why=_redact_finding(str(f.get("confidence_why", ""))),
+                sources=[_redact_finding(str(s)) for s in (f.get("sources") or [])],
+                route=_redact_finding(f.get("route")) if f.get("route") else None,
+                component=_redact_finding(f.get("component")) if f.get("component") else None,
+                endpoint=_redact_finding(f.get("endpoint")) if f.get("endpoint") else None,
+                artifact=f.get("artifact"),
+                timestamp=_utcnow(),
+                verification=verification,
+                limitations=_redact_finding(str(f.get("limitations", ""))),
+                engine=f.get("engine"),
+                shape=_redact_finding(f.get("shape")) if f.get("shape") else None,
+                shape_kind=str(f.get("shape_kind", "")) or None,
+            )
+            self._findings[finding.id] = finding
         return finding.id
 
     def dedup(self) -> int:

@@ -158,5 +158,45 @@ class TestFindingDataclass(unittest.TestCase):
         self.assertEqual(f3.id, "F-9")
 
 
+class TestCentralRedaction(unittest.TestCase):
+    """P0: sources[] and limitations must be redacted — captured URLs land
+    in sources[] verbatim, the most common secret shape in traffic."""
+
+    def test_sources_redacted(self):
+        led = EvidenceLedger()
+        fid = led.add({
+            "type": "note", "title": "t", "detail": "d",
+            "classification": "OBSERVED", "confidence": 0.9,
+            "confidence_why": "w",
+            "sources": ["https://api.example.com/x?api_key=SECRET123&code=ABC"],
+        })
+        rec = [f for f in led.list() if f["id"] == fid][0]
+        self.assertNotIn("SECRET123", rec["sources"][0])
+        self.assertNotIn("code=ABC", rec["sources"][0])
+
+    def test_limitations_redacted(self):
+        led = EvidenceLedger()
+        fid = led.add({
+            "type": "note", "title": "t", "detail": "d",
+            "classification": "OBSERVED", "confidence": 0.9,
+            "confidence_why": "w", "sources": ["s"],
+            "limitations": "token=SECRETVALUE123 in limits",
+        })
+        rec = [f for f in led.list() if f["id"] == fid][0]
+        self.assertNotIn("SECRETVALUE123", rec["limitations"])
+
+    def test_shape_persisted(self):
+        led = EvidenceLedger()
+        fid = led.add({
+            "type": "schema", "title": "t", "detail": "keys: a",
+            "classification": "OBSERVED", "confidence": 0.9,
+            "confidence_why": "w", "sources": ["s"],
+            "shape": {"a": "string"}, "shape_kind": "response",
+        })
+        rec = [f for f in led.list() if f["id"] == fid][0]
+        self.assertEqual(rec["shape"], {"a": "string"})
+        self.assertEqual(rec["shape_kind"], "response")
+
+
 if __name__ == "__main__":
     unittest.main()

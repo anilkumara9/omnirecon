@@ -141,46 +141,33 @@ def _ledger_add(session_id: str, mgr, items: list[dict]) -> list[str]:
 
 
 def _append_findings(session_id: str, items: list[dict]) -> list[str]:
-    """Append finding dicts to evidence.jsonl, assigning F-XXXX ids. Returns ids."""
+    """Fallback writer — goes through EvidenceLedger for validation + redaction.
+
+    One code path for all writes. The old raw-dict writer bypassed central
+    redaction (secrets in sources[]/detail persisted verbatim); this version
+    gets redaction, id assignment, and validation for free.
+    """
+    from omnirecon import evidence as ev
     sdir = SESSIONS_ROOT / session_id
     sdir.mkdir(parents=True, exist_ok=True)
-    existing = _read_ledger(session_id)
-    nums = []
-    for f in existing:
-        fid = str(f.get("id", ""))
-        if fid.startswith("F-") and fid[2:].isdigit():
-            nums.append(int(fid[2:]))
-    nxt = max(nums, default=0) + 1
+    path = sdir / "evidence.jsonl"
+    ledger = ev.EvidenceLedger.load(str(path)) \
+        if path.exists() else ev.EvidenceLedger()
     ids = []
-    lines = []
     for it in items:
-        fid = f"F-{nxt:04d}"
-        nxt += 1
-        cls = it.get("classification", "INFERRED")
-        if cls not in VALID_CLASS:
-            cls = "INFERRED"
-        rec = {
-            "id": fid,
-            "type": it.get("type", "note"),
-            "title": it.get("title", ""),
-            "detail": it.get("detail", ""),
-            "classification": cls,
-            "confidence": max(0.0, min(1.0, float(it.get("confidence", 0.5)))),
-            "confidence_why": it.get("confidence_why", ""),
-            "sources": list(it.get("sources", []) or []),
-            "route": it.get("route"),
-            "component": it.get("component"),
-            "endpoint": it.get("endpoint"),
-            "artifact": it.get("artifact"),
-            "timestamp": _utcnow(),
-            "verification": "unverified",
-            "limitations": it.get("limitations", ""),
-        }
-        lines.append(json.dumps(rec, ensure_ascii=False))
-        ids.append(fid)
-    if lines:
-        with open(sdir / "evidence.jsonl", "a") as fh:
-            fh.write("\n".join(lines) + "\n")
+        if not isinstance(it, dict):
+            continue
+        it = dict(it)
+        # fallback leniency: coerce instead of dropping on bad enums
+        if str(it.get("classification", "UNVERIFIED")).upper() not in ev.CLASSIFICATIONS:
+            it["classification"] = "INFERRED"
+        if str(it.get("type", "note")) not in ev.FINDING_TYPES:
+            it["type"] = "note"
+        try:
+            ids.append(ledger.add(it))
+        except Exception:
+            continue
+    ledger.save(str(path))
     return ids
 
 
@@ -223,7 +210,7 @@ def _goto_resilient(browser, bmod, url, session_id, mgr):
         if "ERR_CERT" not in str(e) or getattr(browser, "_omni_insecure", False):
             raise
         try:
-            browser.close()
+            browser.shutdown()
         except Exception:
             pass
         nb = bmod.OwnedBrowser()
@@ -549,7 +536,7 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
                     pass
             console = browser.console_errors(pid)
         finally:
-            browser.close()
+            browser.shutdown()
     except Exception as e:  # noqa: BLE001
         return _err("browser inspection failed", "internal", str(e)[:300])
 
@@ -651,7 +638,7 @@ def recon_trace_workflow(session_id: str, start_url: str, goal: str,
                 if res.get("url_after") and "logout" in goal.lower():
                     break
         finally:
-            browser.close()
+            browser.shutdown()
     except Exception as e:  # noqa: BLE001
         return _err("workflow trace failed", "internal", str(e)[:300])
     items = []
@@ -717,7 +704,7 @@ def recon_capture_network(session_id: str, url: str,
                     capture = {"requests": raw if isinstance(raw, list) else [],
                                "websocket_frames": []}
             finally:
-                browser.close()
+                browser.shutdown()
         except Exception:
             capture = None
     if capture is None:
@@ -920,7 +907,7 @@ def recon_analyze_ui(session_id: str, url: str) -> dict:
                 umod.analyze_ui(browser, page.get("page_id"),
                                 session_id, url.strip()))
         finally:
-            browser.close()
+            browser.shutdown()
     except Exception as e:  # noqa: BLE001
         return _err("UI analysis failed", "internal", str(e)[:300])
     try:
@@ -1389,7 +1376,7 @@ def recon_authenticate(session_id: str, login_url: str, username: str,
                 username, password, username_selector, password_selector,
                 submit_selector))
         finally:
-            browser.close()
+            browser.shutdown()
     except Exception as e:  # noqa: BLE001
         return _err("authentication failed", "internal", str(e)[:300])
     # record THAT auth happened — never credential material (central

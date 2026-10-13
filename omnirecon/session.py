@@ -82,6 +82,11 @@ def _detect_target_kind(target: str) -> tuple[str, str]:
     # bare domain → treat as URL
     if re.match(r"^[\w.\-]+(\.[\w.\-]+)+(:\d+)?(/.*)?$", t):
         return "url", "https://" + t
+    # localhost / bare IP / .local: local dev servers (http, not https)
+    if re.match(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/.*)?$",
+                t, re.IGNORECASE) or \
+       re.match(r"^[\w.\-]+\.local(:\d+)?(/.*)?$", t, re.IGNORECASE):
+        return "url", "http://" + t
     raise ReconError(f"could not interpret target {t!r}", code="invalid_target",
                      hint="Pass an http(s) URL, an OpenAPI document URL, a local "
                           "directory, a git URL, or a binary/APK file path.")
