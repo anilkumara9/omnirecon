@@ -1,0 +1,12 @@
+# OmniRecon dependencies.
+#
+# mcp<2 is a hard pin: mcp 2.x removed the FastMCP API this server is built on.
+# Everything else floats — pip resolves compatible versions at install time.
+mcp<2
+playwright
+httpx
+beautifulsoup4
+lxml
+tldextract
+dnspython
+pyyaml

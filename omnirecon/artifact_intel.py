@@ -203,6 +203,25 @@ def _analyze_apk(session_id: str, path: str, out: dict) -> None:
                 "SOURCE_VERIFIED", 0.9, "manifest intent-filter decode",
                 [path], endpoint=schemes)
 
+    # DEX code inventory: the manifest says what the app declares;
+    # the DEX says what it does (classes, method refs, API usage).
+    if has_dex:
+        try:
+            from omnirecon import dex as DX
+            dex_items = DX.parse_apk_dex(path)
+            out["dex_files"] = [d["dex_name"] for d in dex_items]
+            out["dex_parsed"] = sum(1 for d in dex_items if d["parsed"])
+            for d in dex_items:
+                DX.summarize_parsed(d["parsed"], session_id,
+                                    origin=d["origin"],
+                                    dex_name=d["dex_name"])
+        except Exception as e:  # noqa: BLE001 — DEX is best-effort
+            out["dex_error"] = str(e)[:200]
+            _record(session_id, "note", "DEX inventory failed",
+                    f"Could not inventory DEX code: {str(e)[:200]}",
+                    "BLOCKED", 1.0, "DEX discovery/parse", [path],
+                    engine="binary")
+
 
 def rea_cli_path() -> str | None:
     """Locate the REA CLI if installed (for deep binary analysis)."""

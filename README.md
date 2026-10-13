@@ -24,7 +24,7 @@ other MCP-compatible agent or IDE.
 
 - [How it works](#how-it-works)
 - [Why it's different](#why-its-different)
-- [The 19 tools](#the-19-tools)
+- [The 21 tools](#the-21-tools)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
 - [Agent workflow example](#agent-workflow-example)
@@ -74,7 +74,7 @@ with a live REA bridge fusing deep decompilation results into the same evidence
 ledger when REA is installed with a configured provider. Full analysis in
 [`REA_INSPECTION.md`](REA_INSPECTION.md).
 
-## The 19 tools
+## The 21 tools
 
 | Tool | What it does |
 |---|---|
@@ -97,6 +97,8 @@ ledger when REA is installed with a configured provider. Full analysis in
 | `recon_compare_build` | Diff a rebuild URL against the reference (route coverage, endpoint overlap). |
 | `recon_export_report` | Markdown/JSON report — or an **OpenAPI 3.1 document** reconstructed from the ledger, every path tagged with its evidence classification. |
 | `recon_cancel` | Cancel a session and its background jobs. |
+| `recon_authenticate` | **Log in with your own credentials**; saves session cookies so all later browser tools browse as the logged-in user. Password used transiently, never stored. |
+| `recon_deauthenticate` | Delete saved session cookies (log out). |
 
 ## UI reverse engineering (designer-grade)
 
@@ -115,6 +117,24 @@ way a designer would inspect a finished product:
 
 Combine with `recon_extract_assets` (static CSS tokens + font files) and
 `recon_inspect_page` (DOM + screenshots) for the full designer handoff.
+
+## Authenticated recon (behind the login)
+
+Most real platforms hide 90% of themselves behind a login. OmniRecon can now
+go there — with **your own credentials**, for authorized testing:
+
+```
+recon_authenticate(session_id, login_url, username, password)
+→ recon_inspect_page / discover_routes / trace_workflow / capture_network / analyze_ui
+→ recon_deauthenticate(session_id)
+```
+
+- The browser performs the login; session cookies are saved (`0600`) and
+  automatically injected into every later browser context in the session.
+- The password is used transiently for the form fill and **never stored** —
+  not in the session dir, not in the evidence ledger, not in logs.
+- The ledger records *that* authentication happened (OBSERVED), never
+  credential material.
 
 ## Why top engineers pick OmniRecon
 
@@ -150,12 +170,27 @@ Every tool degrades honestly: on failure you get
 
 Requirements: Python 3.10+, no Node.js.
 
+**One command:**
+
 ```bash
 git clone https://github.com/anilkumara9/omnirecon.git
 cd omnirecon
+./install.sh
+```
+
+This checks your Python, creates `.venv/`, installs dependencies, downloads
+Playwright's Chromium (~300MB, skipped if already present), and verifies the
+install. Safe to re-run — steps that are already done are skipped.
+
+<details>
+<summary>Manual install (if you prefer each step explicit)</summary>
+
+```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/playwright install chromium   # browser for inspect/trace/capture
 ```
+
+</details>
 
 Run the server (stdio transport):
 
@@ -204,7 +239,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 19 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 21 tools.
 
 ### Cursor
 
@@ -258,14 +293,14 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 19 tools are mirrored as CLI commands running the same code — useful for
+All 21 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
 .venv/bin/python -m omnirecon.cli recon-discover-routes <session-id> https://example.com --max-pages 40
 .venv/bin/python -m omnirecon.cli recon-generate-spec <session-id>
-.venv/bin/python -m omnirecon.cli --help   # all 19 commands
+.venv/bin/python -m omnirecon.cli --help   # all 21 commands
 ```
 
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
@@ -367,7 +402,7 @@ skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-cli.py                argparse CLI mirroring all 19 MCP tools
+cli.py                argparse CLI mirroring all 21 MCP tools
 ARCHITECTURE.md       module map and design decisions
 REA_INSPECTION.md     REA teardown and the evidence-based comparison
 FINAL_REPORT_2026-10-12.md  build report

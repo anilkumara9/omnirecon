@@ -48,6 +48,7 @@ use the first row that fits.
 | Marketing/static site (few pages, little JS) | `recon_start` (fast) | `recon_discover_routes` → `recon_export_report`. Usually done in under a minute. |
 | JS-heavy SPA (React/Vue/Next) | `recon_start` (thorough) | `recon_capture_network` on key routes → `recon_inspect_page` → `recon_discover_routes` → spec |
 | Multi-route app with forms/logins | `recon_start` (thorough) | `recon_discover_routes` → `recon_trace_workflow` per key journey → `recon_inspect_page` on form routes |
+| App behind a login (your own credentials) | `recon_authenticate` first | Login flow → cookies saved → all browser tools run as the logged-in user → `recon_deauthenticate` when done. Password never stored. |
 | Pixel-faithful UI rebuild needed | `recon_analyze_ui` on flagship pages | Computed design tokens + component variants (designer handoff); pair with `recon_extract_assets` for font files and image inventory |
 | Site + public API docs | `recon_start` | `recon_capture_network` → cross-check endpoints against docs; mismatches become UNVERIFIED findings |
 | Local repo, full source | `recon_analyze_source` (or `recon_start` with repo path) | `recon_get_graph` → `recon_generate_spec`; source findings are SOURCE_VERIFIED |

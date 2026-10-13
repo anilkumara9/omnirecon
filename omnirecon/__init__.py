@@ -1,3 +1,3 @@
 """OmniRecon — autonomous reverse-engineering MCP for coding agents."""
 
-__version__ = "1.34.0"
+__version__ = "1.35.0"

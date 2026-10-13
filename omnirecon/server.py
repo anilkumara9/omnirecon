@@ -216,7 +216,7 @@ def _goto_resilient(browser, bmod, url, session_id, mgr):
     behind TLS-intercepting proxies), and the navigation is retried once.
     """
     try:
-        return browser, browser.goto(url)
+        return browser, browser.goto(url, session_id=session_id)
     except Exception as e:  # noqa: BLE001 - error text is the signal
         if "ERR_CERT" not in str(e) or getattr(browser, "_omni_insecure", False):
             raise
@@ -239,7 +239,7 @@ def _goto_resilient(browser, bmod, url, session_id, mgr):
                             "page content was still observed normally")])
         except Exception:
             pass
-        return nb, nb.goto(url)
+        return nb, nb.goto(url, session_id=session_id)
 
 
 # --- background jobs ---------------------------------------------------------
@@ -1332,6 +1332,108 @@ def recon_cancel(session_id: str) -> dict:
     _audit(session_id, "cancel", "")
     return result if isinstance(result, dict) else {"session_id": session_id,
                                                     "status": "cancelled"}
+
+
+@mcp.tool()
+def recon_authenticate(session_id: str, login_url: str, username: str,
+                       password: str, username_selector: str = "",
+                       password_selector: str = "",
+                       submit_selector: str = "") -> dict:
+    """Log in to a target with the operator's OWN credentials (authorized
+    testing only) and persist the session cookies for all later browser
+    tools in this session. The password is used transiently for the login
+    form fill and is never stored — not in the session dir, not in the
+    ledger, not in logs. Only the resulting cookies are saved (0600).
+    After this, recon_inspect_page / discover / trace / capture / analyze_ui
+    automatically browse as the logged-in user. Use recon_deauthenticate
+    when done."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    for name, val in (("login_url", login_url), ("username", username),
+                      ("password", password)):
+        if not val or not val.strip():
+            return _err(f"{name} is required", "invalid_input", "")
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        return _err("authentication requires the browser engine",
+                    "unavailable",
+                    "omnirecon.browser_engine is not available in this deployment")
+    amod, aerr = _lane("auth")
+    if aerr or not hasattr(amod, "perform_login"):
+        return _err("authentication is unavailable", "unavailable",
+                    "omnirecon.auth is not available in this deployment")
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, login_url.strip(),
+                                            session_id, mgr)
+            result = browser._run(amod.perform_login(
+                browser, page.get("page_id"), session_id, login_url.strip(),
+                username, password, username_selector, password_selector,
+                submit_selector))
+        finally:
+            browser.close()
+    except Exception as e:  # noqa: BLE001
+        return _err("authentication failed", "internal", str(e)[:300])
+    # record THAT auth happened — never credential material (central
+    # ledger redaction is the backstop, but we don't even send secrets)
+    if result.get("ok"):
+        _ledger_add(session_id, mgr, [_finding(
+            "auth", f"Authenticated session: {login_url[:80]}",
+            f"Login flow succeeded ({result.get('cookies_saved', 0)} cookies "
+            f"saved). Evidence: {'; '.join(result.get('evidence', []))[:300]}. "
+            "Later browser tools in this session browse as the logged-in user.",
+            "OBSERVED", 0.85, "browser login flow + cookie capture",
+            sources=[login_url], engine="rendered")])
+    else:
+        _ledger_add(session_id, mgr, [_finding(
+            "auth", f"Authentication failed: {login_url[:80]}",
+            f"Login flow did not succeed. Evidence: "
+            f"{'; '.join(result.get('evidence', []))[:300]}. Auth-walled "
+            "areas remain UNVERIFIED.",
+            "UNVERIFIED", 0.6, "browser login flow attempted",
+            sources=[login_url], engine="rendered")])
+    try:
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "authenticate",
+           f"{login_url} ok={result.get('ok')}")
+    # never return the password; never echo it
+    return {"session_id": session_id, "ok": result.get("ok"),
+            "evidence": result.get("evidence", []),
+            "cookies_saved": result.get("cookies_saved", 0),
+            "note": "password was used transiently and not stored"}
+
+
+@mcp.tool()
+def recon_deauthenticate(session_id: str) -> dict:
+    """Delete saved session cookies for a session (log out). Call when
+    authenticated recon is done. Credentials were never stored; this
+    removes the session cookies so later tools browse anonymously again."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    amod, aerr = _lane("auth")
+    cleared = False
+    if not aerr and hasattr(amod, "clear_cookies"):
+        try:
+            cleared = amod.clear_cookies(session_id)
+        except Exception:
+            pass
+    _ledger_add(session_id, mgr, [_finding(
+        "auth", "Session deauthenticated",
+        "Saved auth cookies deleted; later browser tools browse anonymously.",
+        "OBSERVED", 1.0, "cookie file removed", sources=[])])
+    _audit(session_id, "deauthenticate", "")
+    return {"session_id": session_id, "cookies_cleared": cleared}
 
 
 if __name__ == "__main__":

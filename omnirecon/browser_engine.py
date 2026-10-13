@@ -480,8 +480,14 @@ class AsyncOwnedBrowser:
 
     # -- navigation ------------------------------------------------------
 
-    async def goto(self, url: str, page_id: int | None = None) -> dict:
-        """Navigate (new page unless page_id given). Returns page_id/url/title/status."""
+    async def goto(self, url: str, page_id: int | None = None,
+                 session_id: str | None = None) -> dict:
+        """Navigate (new page unless page_id given). Returns page_id/url/title/status.
+
+        When session_id is given and that session has saved auth cookies
+        (via recon_authenticate), they are injected into the new browser
+        context before navigation.
+        """
         self._require_browser()
         if not re.match(r"^(https?|data):", url or "", re.IGNORECASE):
             raise ReconError(f"only http(s) and data: URLs are navigated: "
@@ -489,6 +495,12 @@ class AsyncOwnedBrowser:
         try:
             if page_id is None:
                 page, ctx = await self._new_page()
+                if session_id:
+                    try:
+                        from omnirecon import auth as _auth
+                        await _auth.inject_cookies(ctx, session_id)
+                    except Exception:
+                        pass
                 pid = self._next_id
                 self._next_id += 1
                 entry = {"page": page, "context": ctx, "net": [], "ws": [],
@@ -1076,8 +1088,10 @@ class OwnedBrowser:
             pass
         return {"ok": True}
 
-    def goto(self, url: str, page_id: int | None = None) -> dict:
-        return self._run(self._impl.goto(url, page_id=page_id))
+    def goto(self, url: str, page_id: int | None = None,
+             session_id: str | None = None) -> dict:
+        return self._run(self._impl.goto(url, page_id=page_id,
+                                         session_id=session_id))
 
     def snapshot(self, page_id: int) -> dict:
         return self._run(self._impl.snapshot(page_id))

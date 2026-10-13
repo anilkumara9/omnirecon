@@ -157,6 +157,22 @@ def build_parser() -> argparse.ArgumentParser:
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_cancel(a.session))
 
+    p = sub.add_parser("recon-authenticate", help="Log in with your own credentials; save session cookies.")
+    _add_session_arg(p)
+    p.add_argument("login_url")
+    p.add_argument("username")
+    p.add_argument("password")
+    p.add_argument("--username-selector", default="")
+    p.add_argument("--password-selector", default="")
+    p.add_argument("--submit-selector", default="")
+    p.set_defaults(func=lambda a: SRV.recon_authenticate(
+        a.session, a.login_url, a.username, a.password,
+        a.username_selector, a.password_selector, a.submit_selector))
+
+    p = sub.add_parser("recon-deauthenticate", help="Delete saved session cookies.")
+    _add_session_arg(p)
+    p.set_defaults(func=lambda a: SRV.recon_deauthenticate(a.session))
+
     return ap
 
 
