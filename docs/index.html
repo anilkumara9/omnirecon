@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Replace CONTENT with your Google Search Console verification token -->
+<meta name="google-site-verification" content="REPLACE_WITH_GSC_TOKEN">
+<title>OmniRecon — Reverse Engineering & Reconnaissance MCP Server for AI Coding Agents</title>
+<meta name="description" content="Open-source toolkit for automated reverse engineering: web platforms, REST APIs, Android APKs, Electron apps, codebases. 21 MCP tools for Claude Code, Codex, Cursor.">
+<style>
+:root{--bg:#0b0f19;--surface:#131a2a;--line:#223;--acc:#6ea8fe;--txt:#e8edf7;--mut:#93a0b8}
+*{box-sizing:border-box;margin:0}body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);line-height:1.65}
+.wrap{max-width:880px;margin:0 auto;padding:0 24px}
+header{padding:72px 0 40px;text-align:center}
+header h1{font-size:42px;letter-spacing:-1px;margin-bottom:12px}
+header p{color:var(--mut);font-size:18px;max-width:640px;margin:0 auto}
+.cta{margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 26px;border-radius:10px;font-weight:600;text-decoration:none;font-size:15px}
+.btn-p{background:var(--acc);color:#081020}.btn-g{border:1px solid var(--acc);color:var(--acc)}
+section{padding:36px 0;border-top:1px solid var(--line)}
+h2{font-size:26px;margin-bottom:16px}h3{font-size:18px;margin:20px 0 8px}
+p,li{color:#cdd6ea}ul{padding-left:22px}li{margin:6px 0}
+code{background:#1b2440;padding:2px 7px;border-radius:6px;font-size:14px}
+pre{background:#0e1526;border:1px solid var(--line);border-radius:10px;padding:18px;overflow-x:auto;font-size:14px;margin:12px 0}
+pre code{background:none;padding:0}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--mut);text-transform:uppercase;font-size:12px}
+footer{padding:40px 0;color:var(--mut);font-size:14px;text-align:center;border-top:1px solid var(--line)}
+a{color:var(--acc)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.card h3{margin-top:0}
+</style>
+</head>
+<body>
+<header class="wrap">
+<h1>OmniRecon</h1>
+<p>Reverse engineering &amp; reconnaissance MCP server for AI coding agents. Point it at a web app, API, APK, or codebase — get back an evidence-backed rebuild blueprint.</p>
+<div class="cta">
+<a class="btn btn-p" href="https://github.com/anilkumara9/omnirecon">GitHub Repo</a>
+<a class="btn btn-g" href="https://github.com/anilkumara9/omnirecon#installation">Quickstart</a>
+</div>
+</header>
+
+<div class="wrap">
+<section>
+<h2>What it does</h2>
+<div class="grid">
+<div class="card"><h3>🌐 Web platforms</h3><p>Autonomous browser crawls routes, clicks workflows, captures live XHR/WebSocket traffic, extracts design tokens from rendered styles.</p></div>
+<div class="card"><h3>🔌 REST APIs</h3><p>Endpoint discovery from JS bundles, live probing, values-free schema inference, OpenAPI 3.1 export with evidence tags.</p></div>
+<div class="card"><h3>📱 Android APKs</h3><p>Manifest parsing, DEX class/method inventory, interesting-API detection (network, crypto, reflection).</p></div>
+<div class="card"><h3>🖥️ Electron apps</h3><p>.asar introspection, IPC channel inventory, BrowserWindow security prefs.</p></div>
+<div class="card"><h3>📦 Codebases</h3><p>AST route extraction, component inventory, state management, auth files, migrations.</p></div>
+<div class="card"><h3>✅ Evidence ledger</h3><p>Every finding classified: OBSERVED / SOURCE_VERIFIED / INFERRED / UNVERIFIED / BLOCKED. Nothing invented, ever.</p></div>
+</div>
+</section>
+
+<section>
+<h2>Quickstart</h2>
+<pre><code>git clone https://github.com/anilkumara9/omnirecon.git
+cd omnirecon
+./install.sh   # Linux/macOS — or install.bat on Windows
+
+# connect your agent (zero path mistakes):
+.venv/bin/python -m omnirecon.cli setup claude-code
+
+# or use the CLI directly:
+.venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast</code></pre>
+<p>Works with Claude Code, Codex CLI, Cursor, Windsurf, Zed, and any MCP-compatible client. Full guide in the <a href="https://github.com/anilkumara9/omnirecon#connecting-your-agent">README</a>.</p>
+</section>
+
+<section>
+<h2>OmniRecon vs alternatives</h2>
+<table>
+<tr><th></th><th>OmniRecon</th><th>REA</th><th>Burp + DevTools</th></tr>
+<tr><td>Built for AI agents</td><td>✅ 21 MCP tools</td><td>❌ CLI for humans</td><td>❌ manual</td></tr>
+<tr><td>Autonomous web driving</td><td>✅</td><td>❌ passive by design</td><td>❌ manual</td></tr>
+<tr><td>Evidence ledger</td><td>✅</td><td>✅</td><td>❌</td></tr>
+<tr><td>Deep binary decompilation</td><td>via REA bridge</td><td>✅ Ghidra/IDA</td><td>❌</td></tr>
+<tr><td>Rebuild blueprint + verify</td><td>✅</td><td>❌</td><td>❌</td></tr>
+</table>
+</section>
+
+<section>
+<h2>FAQ</h2>
+<h3>What can I reverse engineer?</h3>
+<p>Web apps, REST APIs, Android APKs, Electron apps, and codebases — anything with an observable surface. Server internals and authed areas you can't access are recorded as BLOCKED/UNVERIFIED, never invented.</p>
+<h3>How is it different from REA?</h3>
+<p>REA is the authority on deep binary decompilation and deliberately passive on the web. OmniRecon drives a real browser autonomously and bridges to REA for binaries.</p>
+<h3>Does it work without an MCP client?</h3>
+<p>Yes — all 21 tools are mirrored in the CLI.</p>
+</section>
+
+<section>
+<h2>Links</h2>
+<ul>
+<li><a href="https://github.com/anilkumara9/omnirecon">GitHub repository</a></li>
+<li><a href="https://github.com/anilkumara9/omnirecon/tree/main/examples/teardown-acme-metrics">Worked teardown example</a></li>
+<li><a href="https://github.com/anilkumara9/omnirecon/releases">Releases</a></li>
+<li><a href="https://github.com/anilkumara9/omnirecon/blob/main/SECURITY.md">Security policy</a></li>
+</ul>
+</section>
+</div>
+
+<footer class="wrap">
+<p>OmniRecon is MIT licensed. Built for AI coding agents that need to see.</p>
+<p><a href="https://github.com/anilkumara9/omnirecon">github.com/anilkumara9/omnirecon</a></p>
+</footer>
+</body>
+</html>

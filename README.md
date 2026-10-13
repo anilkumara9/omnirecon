@@ -1,4 +1,6 @@
-# OmniRecon MCP
+# OmniRecon: Reverse Engineering & Reconnaissance MCP Server for AI Coding Agents
+
+> Open-source toolkit for automated reverse engineering — web platforms, REST APIs, Android APKs, Electron apps, and codebases. Gives coding agents (Claude Code, Codex, Cursor) a real browser to crawl routes, capture API traffic, extract design systems, and generate evidence-backed rebuild blueprints.
 
 <p align="center">
   <img src="assets/mascot.webp" alt="OmniRecon mascot — the reverse-engineering bot" width="320" />
@@ -54,6 +56,7 @@ works and give me a rebuild plan."*
 - [Security boundaries](#security-boundaries)
 - [Project layout](#project-layout)
 - [Troubleshooting](#troubleshooting)
+- [FAQ](#frequently-asked-questions)
 - [Star history](#star-history)
 - [License](#license)
 
@@ -511,6 +514,34 @@ REA_INSPECTION.md     REA teardown and the evidence-based comparison
   to DNS-over-HTTPS automatically.
 - **Tool returns `{"error", …}`** — read `code` and `hint`; the server never
   leaks tracebacks.
+
+## Frequently asked questions
+
+**What can I reverse engineer with OmniRecon?**
+Web applications (routes, API endpoints, UI design systems, user workflows),
+REST APIs (endpoint discovery, live probing, OpenAPI export), Android APKs
+(manifest + DEX code analysis), Electron apps (.asar, IPC channels), and
+source codebases (routes, components, auth). Anything with an observable
+surface.
+
+**How is this different from REA?**
+REA is the authority on deep binary decompilation (Ghidra/IDA providers) and is
+deliberately passive on the web. OmniRecon autonomously drives a real browser —
+crawling, clicking, capturing traffic — and routes binary targets to REA through
+a bridge when REA is installed. See the [comparison table](#comparison-with-alternatives).
+
+**Can it reverse engineer mobile apps?**
+Android APKs: yes — manifest parsing, DEX class/method inventory, interesting-API
+detection (network, crypto, reflection). iOS IPAs: structural analysis only.
+For native code decompilation, use the REA bridge.
+
+**Does it work without an MCP client?**
+Yes. Every tool is mirrored in the CLI: `.venv/bin/python -m omnirecon.cli --help`.
+
+**Is it safe to run against production sites?**
+Recon is read-only by default — no state-changing requests, no destructive
+actions. Authenticated recon uses only credentials you explicitly provide.
+See [Security boundaries](#security-boundaries).
 
 ## Star history
 
