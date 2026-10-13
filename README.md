@@ -430,7 +430,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | Demo SaaS teardown | 36 findings, 5 pages, 5 API endpoints, design tokens, 3-viewport screenshots — [full session committed](examples/teardown-acme-metrics/) |
 
-158 tests green (`pytest tests/`). Raw benchmark data
+163 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
@@ -452,7 +452,7 @@ in [`benchmarks/results/`](benchmarks/results/).
 ```
 omnirecon/            the 22-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
-tests/                pytest suite (158 tests)
+tests/                pytest suite (163 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 examples/             committed teardown sessions (proof, not docs)
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
