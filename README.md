@@ -59,6 +59,7 @@ other MCP-compatible agent or IDE.
 - [Security boundaries](#security-boundaries)
 - [Project layout](#project-layout)
 - [Troubleshooting](#troubleshooting)
+- [Star history](#star-history)
 - [License](#license)
 
 ---
@@ -493,6 +494,12 @@ FINAL_REPORT_2026-10-12.md  build report
   to DNS-over-HTTPS automatically.
 - **Tool returns `{"error", …}`** — read `code` and `hint`; the server never
   leaks tracebacks.
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=anilkumara9/omnirecon&type=date)](https://www.star-history.com/#anilkumara9/omnirecon&type=date)
+
+If OmniRecon gave your agent superpowers, leave a ⭐ — it helps other developers find it.
 
 ## License
 
