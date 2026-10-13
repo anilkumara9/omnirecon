@@ -12,6 +12,8 @@ never a traceback.
 """
 from __future__ import annotations
 
+from typing import Annotated
+
 import datetime
 import importlib
 import json
@@ -25,6 +27,7 @@ from pathlib import Path
 # (script dir, not the project root, lands on sys.path in that case).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from pydantic import Field
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 from omnirecon import recon_primitives as RP
@@ -391,8 +394,10 @@ def _minimal_graph(findings: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def recon_start(target: str, mode: str = "fast", budget_json: str = "{}") -> dict:
-    """Start a reverse-engineering session for any target kind: web URL, OpenAPI/Swagger document URL, local repo path or git URL, or a shipped artifact file (APK/IPA/native binary/JS bundle/.asar).
+def recon_start(target: Annotated[str, Field(description="Target to reverse-engineer: full URL (https://...), OpenAPI doc URL, local repo path, or artifact file path (APK/binary/.asar)")],
+                  mode: Annotated[str, Field(description='"fast" for rapid recon in seconds, "thorough" for deep multi-engine analysis')] = "fast",
+                  budget_json: Annotated[str, Field(description='Optional JSON budget, e.g. {"max_pages": 40}; empty "{}" for defaults')] = "{}") -> dict:
+    """FIRST CALL — start here. Start a reverse-engineering session for any target kind: web URL, OpenAPI/Swagger document URL, local repo path or git URL, or a shipped artifact file (APK/IPA/native binary/JS bundle/.asar).
     Runs Stage 1 (target validation) + Stage 2 (rapid recon) synchronously and
     returns {session_id, rapid_report}. mode is 'fast' or 'thorough'.
     budget_json is an optional JSON object, e.g. {"max_pages": 40}."""
@@ -421,7 +426,7 @@ def recon_start(target: str, mode: str = "fast", budget_json: str = "{}") -> dic
 
 
 @mcp.tool()
-def recon_status(session_id: str) -> dict:
+def recon_status(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
     """Session status: stage, progress, ledger stats, and background jobs."""
     mgr, err = _session_manager()
     if err:
@@ -443,8 +448,10 @@ def recon_status(session_id: str) -> dict:
 
 
 @mcp.tool()
-def recon_discover_routes(session_id: str, max_pages: int = 40,
-                           max_depth: int = 3, background: bool = False) -> dict:
+def recon_discover_routes(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                           max_pages: Annotated[int, Field(description="Max pages to crawl; 40 covers most sites, 100 for large apps")] = 40,
+                           max_depth: Annotated[int, Field(description="Link-follow depth from start; 3 is usually enough")] = 3,
+                           background: Annotated[bool, Field(description="True for large crawls; poll progress with recon_status")] = False) -> dict:
     """Discover and classify reachable routes for the session target.
     Crawls internal pages and records route + endpoint findings. Long-running:
     pass background=true to get a job_id and poll via recon_status."""
@@ -491,7 +498,8 @@ def recon_discover_routes(session_id: str, max_pages: int = 40,
 
 
 @mcp.tool()
-def recon_inspect_page(session_id: str, url: str) -> dict:
+def recon_inspect_page(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                        url: Annotated[str, Field(description="Full page URL to deep-inspect, e.g. https://site.com/pricing")] ) -> dict:
     """Deep-inspect one page: DOM structure, controls, forms, accessibility data,
     screenshots (desktop/tablet/mobile), console errors. Uses the owned browser
     when available; falls back to static analysis (marked 'limited')."""
@@ -502,7 +510,7 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
     if serr:
         return serr
     if not url or not url.strip():
-        return _err("url is required", "invalid_input", "")
+        return _err("url is required", "invalid_input", "pass the full page URL as the 'url' argument, e.g. https://site.com/pricing")
     url = url.strip()
 
     bmod, berr = _lane("browser_engine")
@@ -605,8 +613,10 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
 
 
 @mcp.tool()
-def recon_trace_workflow(session_id: str, start_url: str, goal: str,
-                         max_steps: int = 15) -> dict:
+def recon_trace_workflow(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                         start_url: Annotated[str, Field(description="Full URL where the user journey begins")] ,
+                         goal: Annotated[str, Field(description="Natural-language goal, e.g. 'add an item to cart and reach checkout'")] ,
+                         max_steps: Annotated[int, Field(description="Max browser actions before stopping; 15 suffices for most flows")] = 15) -> dict:
     """Explore a bounded user journey from start_url toward a goal, recording
     state transitions (DOM changes, URL changes, network effects) per action.
     Safe actions only — never purchases, payments, deletions, or credential
@@ -706,8 +716,9 @@ def recon_trace_workflow(session_id: str, start_url: str, goal: str,
 
 
 @mcp.tool()
-def recon_capture_network(session_id: str, url: str,
-                          duration_ms: int = 8000) -> dict:
+def recon_capture_network(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                          url: Annotated[str, Field(description="Full page URL to load and monitor for network traffic")] ,
+                          duration_ms: Annotated[int, Field(description="How long to record traffic in milliseconds; 8000 catches most XHR/fetch")] = 8000) -> dict:
     """Capture the page's real network traffic (XHR/fetch/WebSocket) and build
     a redacted endpoint catalog. Secrets are stripped before storage."""
     mgr, err = _session_manager()
@@ -815,7 +826,8 @@ def recon_capture_network(session_id: str, url: str,
 
 
 @mcp.tool()
-def recon_analyze_source(session_id: str, path_or_repo_url: str) -> dict:
+def recon_analyze_source(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                        path_or_repo_url: Annotated[str, Field(description="Local directory path or git URL (https://github.com/...git) to analyze")] ) -> dict:
     """Analyze a local codebase or git repo URL: languages, frameworks, routes,
     components, state management, API clients, migrations, auth boundaries.
     Never reads secret values (env var names only)."""
@@ -826,7 +838,7 @@ def recon_analyze_source(session_id: str, path_or_repo_url: str) -> dict:
     if serr:
         return serr
     if not path_or_repo_url or not path_or_repo_url.strip():
-        return _err("path_or_repo_url is required", "invalid_input", "")
+        return _err("path_or_repo_url is required", "invalid_input", "pass a local directory path or git URL")
 
     # Sensitive-path guard: refuse credential-bearing locations unless the
     # operator explicitly opts in (defends against prompt-injected paths like
@@ -882,7 +894,8 @@ def recon_analyze_source(session_id: str, path_or_repo_url: str) -> dict:
 
 
 @mcp.tool()
-def recon_extract_assets(session_id: str, url: str) -> dict:
+def recon_extract_assets(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                        url: Annotated[str, Field(description="Full page URL to inventory images, fonts, icons from")] ) -> dict:
     """Inventory a page's assets: images, fonts, icons, and design tokens
     (colors, spacing, typography signals) from the DOM and CSS."""
     mgr, err = _session_manager()
@@ -909,7 +922,8 @@ def recon_extract_assets(session_id: str, url: str) -> dict:
 
 
 @mcp.tool()
-def recon_analyze_ui(session_id: str, url: str) -> dict:
+def recon_analyze_ui(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                     url: Annotated[str, Field(description="Full page URL for designer-grade UI analysis; use flagship pages")] ) -> dict:
     """Designer-grade UI reverse engineering: computed design tokens (colors,
     typography, spacing, radii, shadows), component inventory grouped by visual
     signature, CSS framework detection, and layout sectioning — all from
@@ -921,7 +935,7 @@ def recon_analyze_ui(session_id: str, url: str) -> dict:
     if serr:
         return serr
     if not url or not url.strip():
-        return _err("url is required", "invalid_input", "")
+        return _err("url is required", "invalid_input", "pass the full page URL as the 'url' argument, e.g. https://site.com/pricing")
     bmod, berr = _lane("browser_engine")
     if berr or not hasattr(bmod, "OwnedBrowser"):
         return _err("UI analysis requires the browser engine", "unavailable",
@@ -952,7 +966,8 @@ def recon_analyze_ui(session_id: str, url: str) -> dict:
 
 
 @mcp.tool()
-def recon_analyze_artifact(session_id: str, path: str) -> dict:
+def recon_analyze_artifact(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                          path: Annotated[str, Field(description="Local file path to APK, IPA, ELF/PE/Mach-O binary, JS bundle, or .asar")] ) -> dict:
     """Analyze a shipped artifact: APK/IPA, native binary (ELF/PE/Mach-O),
     or JS bundle. Lightweight structural intel (format, symbols, manifest,
     string-mined URLs) is always produced; when the REA CLI is installed
@@ -965,7 +980,7 @@ def recon_analyze_artifact(session_id: str, path: str) -> dict:
     if serr:
         return serr
     if not path or not path.strip():
-        return _err("path is required", "invalid_input", "")
+        return _err("path is required", "invalid_input", "pass the local file path to the APK/binary/.asar")
     path = os.path.expanduser(path.strip())
     if not os.path.isfile(path):
         return _err(f"file not found: {path}", "invalid_target",
@@ -989,7 +1004,7 @@ def recon_analyze_artifact(session_id: str, path: str) -> dict:
 
 
 @mcp.tool()
-def recon_verify_consistency(session_id: str) -> dict:
+def recon_verify_consistency(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
     """Cross-check findings between engines (static crawl vs rendered pages
     vs JS bundles vs network capture). Agreements are corroborated;
     contradictions are downgraded to UNVERIFIED/INFERRED with reasons —
@@ -1019,7 +1034,8 @@ def recon_verify_consistency(session_id: str) -> dict:
 
 
 @mcp.tool()
-def recon_recover_sourcemaps(session_id: str, page_url: str) -> dict:
+def recon_recover_sourcemaps(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                              page_url: Annotated[str, Field(description="Full page URL whose JS bundles to probe for .map files")] ) -> dict:
     """Fetch published *.js.map files for a page's scripts and recover the
     original source tree (webpack/parcel/vite paths). Reports honestly when
     the site ships no maps."""
@@ -1030,7 +1046,7 @@ def recon_recover_sourcemaps(session_id: str, page_url: str) -> dict:
     if serr:
         return serr
     if not page_url or not page_url.strip():
-        return _err("page_url is required", "invalid_input", "")
+        return _err("page_url is required", "invalid_input", "pass the full page URL whose scripts to probe")
     dmod, derr = _lane("deep_dive")
     if derr or not hasattr(dmod, "recover_sourcemaps"):
         return _err("source-map recovery is unavailable", "unavailable",
@@ -1049,7 +1065,8 @@ def recon_recover_sourcemaps(session_id: str, page_url: str) -> dict:
 
 
 @mcp.tool()
-def recon_probe_endpoints(session_id: str, base_url: str = "") -> dict:
+def recon_probe_endpoints(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                           base_url: Annotated[str, Field(description="Origin to probe relative endpoints against, e.g. https://api.site.com; empty uses session target")] = "") -> dict:
     """Live-probe every discovered /api/* endpoint (HEAD then GET) and record
     live/dead verdicts with status codes. Auth-walled (401/403) counts as
     live-but-guarded. Turns INFERRED endpoints into OBSERVED ones."""
@@ -1061,7 +1078,7 @@ def recon_probe_endpoints(session_id: str, base_url: str = "") -> dict:
         return serr
     target = (base_url or "").strip() or session.get("target", "")
     if not target:
-        return _err("base_url is required", "invalid_input", "")
+        return _err("base_url is required", "invalid_input", "pass the origin URL, e.g. https://api.site.com, or omit to use the session target")
     dmod, derr = _lane("deep_dive")
     if derr or not hasattr(dmod, "probe_endpoints"):
         return _err("endpoint probing is unavailable", "unavailable",
@@ -1080,7 +1097,7 @@ def recon_probe_endpoints(session_id: str, base_url: str = "") -> dict:
 
 
 @mcp.tool()
-def recon_get_graph(session_id: str) -> dict:
+def recon_get_graph(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
     """Return the route / component / workflow / API dependency graph as
     {nodes, edges}, built from the evidence ledger."""
     mgr, err = _session_manager()
@@ -1109,8 +1126,11 @@ def recon_get_graph(session_id: str) -> dict:
 
 
 @mcp.tool()
-def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
-                       classification: str = "", query: str = "") -> dict:
+def recon_get_evidence(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                       finding_id: Annotated[str, Field(description="Exact finding ID like F-0001; empty to filter instead")] = "",
+                       type: Annotated[str, Field(description="Filter by type: route, endpoint, component, asset, schema, tech, state, note, auth")] = "",
+                       classification: Annotated[str, Field(description="Filter by OBSERVED, SOURCE_VERIFIED, INFERRED, UNVERIFIED, BLOCKED")] = "",
+                       query: Annotated[str, Field(description="Free-text search over finding titles and details")] = "") -> dict:
     """Retrieve ledger findings: by ID, by type/classification filter, or by
     free-text search over titles and details."""
     mgr, err = _session_manager()
@@ -1126,7 +1146,7 @@ def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
             if finding_id:
                 f = led.get(finding_id)
                 if not f:
-                    return _err(f"no finding '{finding_id}'", "not_found", "")
+                    return _err(f"no finding '{finding_id}'", "not_found", "list valid IDs with recon_get_evidence(session_id)")
                 return {"finding": f}
             if classification and classification not in VALID_CLASS:
                 return _err(f"invalid classification '{classification}'",
@@ -1147,7 +1167,7 @@ def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
     if finding_id:
         f = next((x for x in findings if x.get("id") == finding_id), None)
         if not f:
-            return _err(f"no finding '{finding_id}'", "not_found", "")
+            return _err(f"no finding '{finding_id}'", "not_found", "list valid IDs with recon_get_evidence(session_id)")
         return {"finding": f}
     res = findings
     if type:
@@ -1166,8 +1186,8 @@ def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
 
 
 @mcp.tool()
-def recon_generate_spec(session_id: str) -> dict:
-    """Generate the 15-section reconstruction blueprint from the evidence
+def recon_generate_spec(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
+    """Call AFTER deep engines (discover/inspect/capture/analyze_ui). Generate the 15-section reconstruction blueprint from the evidence
     ledger + graph. Saved to spec.json. Every claim carries finding_ids;
     unevidenced areas are marked UNVERIFIED/BLOCKED, never invented."""
     mgr, err = _session_manager()
@@ -1279,8 +1299,9 @@ def _attach_deviation_evidence(session_id: str, result: dict) -> dict:
 
 
 @mcp.tool()
-def recon_compare_build(session_id: str, build_url: str) -> dict:
-    """Compare a reconstructed build against the session's recorded reference:
+def recon_compare_build(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                         build_url: Annotated[str, Field(description="Full URL of YOUR rebuild to diff against the recorded reference")] ) -> dict:
+    """Call AFTER building from the spec. Compare a reconstructed build against the session's recorded reference:
     route coverage, endpoint overlap, deviations. Honest about limits — no
     pixel-perfect claims (screenshot comparison is out of scope)."""
     mgr, err = _session_manager()
@@ -1290,7 +1311,7 @@ def recon_compare_build(session_id: str, build_url: str) -> dict:
     if serr:
         return serr
     if not build_url or not build_url.strip():
-        return _err("build_url is required", "invalid_input", "")
+        return _err("build_url is required", "invalid_input", "pass the full URL of your rebuild to compare")
     try:
         result = VERIFY.compare_build(session_id, build_url.strip())
     except Exception as e:  # noqa: BLE001
@@ -1311,8 +1332,9 @@ def recon_compare_build(session_id: str, build_url: str) -> dict:
 
 
 @mcp.tool()
-def recon_export_report(session_id: str, format: str = "markdown") -> dict:
-    """Export the session findings as a Markdown report, machine-readable
+def recon_export_report(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
+                         format: Annotated[str, Field(description='"markdown" for a report, "json" for raw data, "openapi" for an OpenAPI 3.1 document')] = "markdown") -> dict:
+    """Call AFTER recon_generate_spec. Export the session findings as a Markdown report, machine-readable
     JSON, or an OpenAPI 3.1 document reconstructed from the evidence ledger.
     Returns {path, content}. Artifacts land in the session directory."""
     mgr, err = _session_manager()
@@ -1349,7 +1371,7 @@ def recon_export_report(session_id: str, format: str = "markdown") -> dict:
 
 
 @mcp.tool()
-def recon_cancel(session_id: str) -> dict:
+def recon_cancel(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
     """Stop a running analysis session safely."""
     mgr, err = _session_manager()
     if err:
@@ -1367,10 +1389,14 @@ def recon_cancel(session_id: str) -> dict:
 
 
 @mcp.tool()
-def recon_authenticate(session_id: str, login_url: str, username: str,
-                       password: str, username_selector: str = "",
-                       password_selector: str = "",
-                       submit_selector: str = "") -> dict:
+def recon_authenticate(
+    session_id: Annotated[str, Field(description="Session ID returned by recon_start")],
+    login_url: Annotated[str, Field(description="Full URL of the login page")] ,
+    username: Annotated[str, Field(description="Your own username/email for this target (authorized testing only)")] ,
+    password: Annotated[str, Field(description="Your own password; used transiently, never stored")] ,
+    username_selector: Annotated[str, Field(description="CSS selector for the username field; empty for auto-detect")] = "",
+    password_selector: Annotated[str, Field(description="CSS selector for the password field; empty for auto-detect")] = "",
+    submit_selector: Annotated[str, Field(description="CSS selector for the submit button; empty for auto-detect")] = "") -> dict:
     """Log in to a target with the operator's OWN credentials (authorized
     testing only) and persist the session cookies for all later browser
     tools in this session. The password is used transiently for the login
@@ -1388,7 +1414,7 @@ def recon_authenticate(session_id: str, login_url: str, username: str,
     for name, val in (("login_url", login_url), ("username", username),
                       ("password", password)):
         if not val or not val.strip():
-            return _err(f"{name} is required", "invalid_input", "")
+            return _err(f"{name} is required", "invalid_input", f"pass a value for '{name}'")
     bmod, berr = _lane("browser_engine")
     if berr or not hasattr(bmod, "OwnedBrowser"):
         return _err("authentication requires the browser engine",
@@ -1445,7 +1471,7 @@ def recon_authenticate(session_id: str, login_url: str, username: str,
 
 
 @mcp.tool()
-def recon_deauthenticate(session_id: str) -> dict:
+def recon_deauthenticate(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")]) -> dict:
     """Delete saved session cookies for a session (log out). Call when
     authenticated recon is done. Credentials were never stored; this
     removes the session cookies so later tools browse anonymously again."""

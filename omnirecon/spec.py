@@ -109,7 +109,10 @@ def _overview(findings: list[dict]) -> dict:
                f"{len(findings)} evidence findings.",
                _ids(findings), "INFERRED", 0.8,
                "target inferred from the most common finding source"),
-            _b(f"Evidence mix: {dict(by_class)}. Finding types: {dict(by_type)}.",
+            _b(f"{len(findings)} findings: "
+               + ", ".join(f"{v} {k}" for k, v in by_class.most_common())
+               + ". Types: "
+               + ", ".join(f"{v} {k}" for k, v in by_type.most_common()) + ".",
                _ids(findings), "OBSERVED", 0.95,
                "counts computed directly from the evidence ledger"),
         ])
