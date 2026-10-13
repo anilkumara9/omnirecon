@@ -79,14 +79,15 @@ def _detect_target_kind(target: str) -> tuple[str, str]:
         raise ReconError(f"local path does not exist: {t}", code="invalid_target",
                          hint="Pass an http(s) URL, a local directory, a git URL, "
                               "or a binary/APK file path.")
-    # bare domain → treat as URL
-    if re.match(r"^[\w.\-]+(\.[\w.\-]+)+(:\d+)?(/.*)?$", t):
-        return "url", "https://" + t
-    # localhost / bare IP / .local: local dev servers (http, not https)
+    # localhost / bare IP / .local: local dev servers (http, not https).
+    # Checked BEFORE the bare-domain rule so 127.0.0.1 doesn't get https://.
     if re.match(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/.*)?$",
                 t, re.IGNORECASE) or \
        re.match(r"^[\w.\-]+\.local(:\d+)?(/.*)?$", t, re.IGNORECASE):
         return "url", "http://" + t
+    # bare domain → treat as URL
+    if re.match(r"^[\w.\-]+(\.[\w.\-]+)+(:\d+)?(/.*)?$", t):
+        return "url", "https://" + t
     raise ReconError(f"could not interpret target {t!r}", code="invalid_target",
                      hint="Pass an http(s) URL, an OpenAPI document URL, a local "
                           "directory, a git URL, or a binary/APK file path.")
