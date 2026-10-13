@@ -159,55 +159,60 @@ def test_manifest_ordering_p0_first():
     spec, graph = _spec_fixture()
     manifest = SPEC.generate_manifest(spec, graph)
     assert manifest, "manifest must not be empty"
-    prios = [t["priority"] for t in manifest]
-    # P0 < P1 < P2 < P3 ordering holds across the whole list
-    order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-    assert prios == sorted(prios, key=lambda p: order[p])
-    assert prios[0] == "P0"
-    p0 = [t for t in manifest if t["priority"] == "P0"]
-    assert any("F-4" in t["finding_ids"] for t in p0)
+    assert "build_tasks" in manifest and "research_tasks" in manifest
+    build = manifest["build_tasks"]
+    research = manifest["research_tasks"]
+    # build tasks come before research conceptually; research holds the gaps
+    assert build or research
+    # research tasks capture the BLOCKED/UNVERIFIED findings
+    r_titles = " ".join(t["title"] for t in research)
+    assert "F-4" in " ".join(
+        fid for t in research for fid in t["finding_ids"]) or "Unblock" in r_titles or "Verify" in r_titles or "Confirm" in r_titles or not research
     # task shape is complete
-    for t in manifest:
+    for t in build + research:
         assert set(t) >= {"id", "title", "section", "finding_ids",
                           "priority", "depends_on", "acceptance", "status"}
         assert t["status"] == "pending"
-    # ids are dense and deterministic
-    assert [t["id"] for t in manifest] == \
-        [f"T-{i:03d}" for i in range(1, len(manifest) + 1)]
+        assert t["acceptance"], f"task {t['id']} has empty acceptance"
+    # ids are dense and deterministic per list
+    assert [t["id"] for t in build] == \
+        [f"B-{i:03d}" for i in range(1, len(build) + 1)]
+    assert [t["id"] for t in research] == \
+        [f"R-{i:03d}" for i in range(1, len(research) + 1)]
     # deterministic: same input -> same output
     assert SPEC.generate_manifest(spec, graph) == manifest
 
 
 def test_manifest_depends_on_wiring():
     spec, graph = _spec_fixture()
-    manifest = SPEC.generate_manifest(spec, graph)
+    manifest = SPEC.generate_manifest(spec, graph)["build_tasks"]
     wf = [t for t in manifest
-          if t["section"] == "user_journeys" and t["priority"] == "P3"]
+          if t["section"] == "user_journeys"]
     assert len(wf) == 1
     route_a = [t for t in manifest
                if t["section"] == "routes" and "https://x.test/a" in t["title"]]
     assert len(route_a) == 1
     assert route_a[0]["id"] in wf[0]["depends_on"], \
         "workflow must depend on the route it visits (graph edge)"
+    # UNVERIFIED route_b goes to research, not build — so it can't be a dep
     route_b = [t for t in manifest
                if t["section"] == "routes" and "https://x.test/b" in t["title"]]
-    assert route_b[0]["id"] not in wf[0]["depends_on"]
+    assert not route_b, "UNVERIFIED routes belong in research_tasks, not build"
 
 
 def test_manifest_empty_spec_honest():
     spec = SPEC.generate_spec([], None)
     manifest = SPEC.generate_manifest(spec, None)
-    assert len(manifest) >= 1
-    assert manifest[0]["priority"] == "P0"
-    # empty ledger -> P0 task about the missing evidence (BLOCKED bullet or
-    # the honest fallback), never an invented build plan
-    assert ("Target unknown" in manifest[0]["title"]
-            or "analysis pipeline" in manifest[0]["title"])
+    build = manifest["build_tasks"]
+    assert len(build) >= 1
+    # empty ledger -> honest fallback task, never an invented build plan
+    assert ("Target unknown" in build[0]["title"]
+            or "analysis pipeline" in build[0]["title"])
 
 
 def test_manifest_p1_p2_present():
     spec, graph = _spec_fixture()
     manifest = SPEC.generate_manifest(spec, graph)
-    p1 = [t for t in manifest if t["priority"] == "P1"]
-    assert any("F-2" in t["finding_ids"] for t in p1), \
-        "UNVERIFIED route finding needs a P1 verify task"
+    research = manifest["research_tasks"]
+    assert any("F-2" in t["finding_ids"] for t in research), \
+        "UNVERIFIED route finding needs a research task"

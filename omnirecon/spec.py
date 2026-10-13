@@ -638,6 +638,9 @@ def generate_manifest(spec: dict, graph=None) -> list[dict]:
     route_tasks: dict[str, dict] = {}
     for b in _manifest_bullets(spec, "routes"):
         text = b.get("text", "") or ""
+        # Skip advisory placeholders ("No routes discovered...", UNVERIFIED)
+        if b.get("classification") in ("UNVERIFIED", "BLOCKED"):
+            continue
         m = re.match(r"^Route (\S+)", text)
         key = m.group(1) if m else text[:80]
         if not key:
@@ -659,6 +662,8 @@ def generate_manifest(spec: dict, graph=None) -> list[dict]:
         text = b.get("text", "") or ""
         if text.startswith("Only endpoints listed above"):
             continue  # scoping rule, not a build item
+        if b.get("classification") in ("UNVERIFIED", "BLOCKED"):
+            continue  # advisory placeholder, not a build item
         ep = text.split(" — ")[0].strip() or text[:80]
         t = _mk(f"Integrate endpoint {ep}", "api_inventory",
                 b.get("finding_ids"), "P3",
@@ -778,7 +783,8 @@ def generate_manifest(spec: dict, graph=None) -> list[dict]:
     for i, t in enumerate(research_tasks, 1):
         t["id"] = f"R-{i:03d}"
 
-    if not deduped_build and not research_tasks:
+    if not deduped_build:
+        # Honest fallback: nothing evidenced to build from.
         deduped_build.append(_mk(
             "Run the analysis pipeline (recon_start, recon_discover_routes, "
             "recon_inspect_page): the ledger is empty and there is nothing "
