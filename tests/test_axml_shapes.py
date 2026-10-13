@@ -34,31 +34,44 @@ def _build_axml():
         pool += b"\x00"
     pool = pool[:4] + struct.pack("<I", len(pool)) + pool[8:]
 
+    def _ns_start(prefix_idx, uri_idx):
+        # ResXMLTree_node header (16 bytes) then namespaceExt: prefix + uri.
+        h = struct.pack("<HHI", 0x0100, 16, 24)
+        h += struct.pack("<IIii", 1, 0xFFFFFFFF, prefix_idx, uri_idx)
+        return h
+
     def el_start(name_idx, attrs):
+        # True AOSP layout (validated against a real F-Droid APK):
+        # ResChunk_header(8) + lineNumber(4) + comment(4) + ns(i4) + name(i4)
+        # + ResXMLTree_attrExt(12) @ off+24; attributes @ off+36.
+        # NOTE: real aapt writes attributeStart=20 (not 36); the parser must
+        # use the fixed header end, not the declared start.
         n = len(attrs)
-        h = struct.pack("<HHI", 0x0102, 32, 32 + n * 20)
-        h += struct.pack("<III", 1, 0xFFFFFFFF, name_idx)
-        h += struct.pack("<HHHHHH", 32, 20, n, 0, 0, 0)
+        h = struct.pack("<HHI", 0x0102, 16, 36 + n * 20)
+        h += struct.pack("<IIii", 1, 0xFFFFFFFF, -1, name_idx)
+        h += struct.pack("<HHHHHH", 20, 20, n, 0, 0, 0)
         for (ns, nm, dt, dv) in attrs:
-            h += struct.pack("<IIIHBBI", ns, nm, 0xFFFFFFFF, 8, 0, dt, dv)
+            h += struct.pack("<iiiHBBI", ns, nm, -1, 8, 0, dt, dv)
         return h
 
     def el_end(ns, name):
-        return struct.pack("<HHIII", 0x0103, 16, 16, ns, name)
+        h = struct.pack("<HHI", 0x0103, 16, 24)
+        h += struct.pack("<IIii", 1, 0xFFFFFFFF, ns, name)
+        return h
 
     chunks = [pool,
-              struct.pack("<HHIII", 0x0100, 16, 16, SI["android"], AND),
-              el_start(SI["manifest"], [(0xFFFFFFFF, SI["package"], 0x03,
+              _ns_start(SI["android"], AND),
+              el_start(SI["manifest"], [(-1, SI["package"], 0x03,
                                          SI["com.example.bankapp"])]),
               el_start(SI["uses-permission"], [(AND, SI["name"], 0x03,
                                                 SI["android.permission.INTERNET"])]),
-              el_end(0xFFFFFFFF, SI["uses-permission"]),
+              el_end(-1, SI["uses-permission"]),
               el_start(SI["uses-sdk"], [(AND, SI["minSdkVersion"], 0x10, 24)]),
-              el_end(0xFFFFFFFF, SI["uses-sdk"]),
+              el_end(-1, SI["uses-sdk"]),
               el_start(SI["activity"], [(AND, SI["name"], 0x03,
                                          SI["com.example.bankapp"])]),
-              el_end(0xFFFFFFFF, SI["activity"]),
-              el_end(0xFFFFFFFF, SI["manifest"])]
+              el_end(-1, SI["activity"]),
+              el_end(-1, SI["manifest"])]
     body = b"".join(chunks)
     return struct.pack("<HHI", 0x0003, 8, 8 + len(body)) + body
 

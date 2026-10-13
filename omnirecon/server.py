@@ -478,7 +478,7 @@ def recon_discover_routes(session_id: str, max_pages: int = 40,
                 f"title={p.get('title')!r} depth={p.get('depth')} "
                 f"internal_links={p.get('internal_links')}",
                 "OBSERVED", 0.9, "page fetched and parsed during crawl",
-                sources=[p["url"]], route=p["url"]))
+                sources=[p["url"]], route=p["url"], engine="static"))
         for e in crawl.get("api_endpoints", [])[:120]:
             items.append(_finding(
                 "endpoint", f"Endpoint {e['endpoint']}",
@@ -557,7 +557,7 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
         f"title={snap.get('title')!r} controls={len(snap.get('controls', []))} "
         f"forms={len(snap.get('forms', []))}",
         "OBSERVED", 0.9, "rendered in owned browser",
-        sources=[url], route=snap.get("url", url))]
+        sources=[url], route=snap.get("url", url), engine="rendered")]
     for form in snap.get("forms", [])[:10]:
         items.append(_finding(
             "component", f"Form -> {form.get('action')}",
@@ -665,7 +665,7 @@ def recon_trace_workflow(session_id: str, start_url: str, goal: str,
             "state transition recorded by the browser engine"
             if s["observed"]
             else "action produced no observable state change",
-            sources=[start_url], route=s.get("url_after")))
+            sources=[start_url], route=s.get("url_after"), engine="rendered"))
     ids = _ledger_add(session_id, mgr, items)
     _audit(session_id, "trace_workflow",
            f"{start_url} goal={goal} steps={len(steps)}")

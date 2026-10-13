@@ -206,6 +206,64 @@ _FEEDURL_OBJ = re.compile(
     r"setFeedURL\s*\(\s*\{[^}]{0,800}?\burl\s*:\s*['\"`]([^'\"`]{1,300})['\"`]")
 _BROWSERWINDOW = re.compile(
     r"new\s+BrowserWindow\s*\(\s*\{", re.S)
+
+
+# Minification-resilient IPC detection: production bundles rename the
+# `ipcMain` identifier (e.g. `const{ipcMain:e}=require("electron")`), which
+# defeats the literal regexes above. Track require("electron") dataflow and
+# match the call SHAPE (alias.handle("channel")) instead of the identifier.
+_REQUIRE_DESTRUCT = re.compile(
+    r"(?:const|let|var)\s*\{\s*([^}]{0,400}?)\}\s*=\s*require\(\s*"
+    r"['\"]electron['\"]\s*\)")
+_REQUIRE_MODULE = re.compile(
+    r"(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*['\"]electron['\"]\s*\)")
+_IPC_CALL = re.compile(
+    r"(\w+)\s*\.\s*(handle|on|once|invoke|send|sendSync|postMessage)"
+    r"\s*\(\s*['\"`]([^'\"`]{1,120})['\"`]")
+
+
+def _extract_ipc_aliased(text: str, ipc_main: dict, ipc_renderer: dict) -> None:
+    """Find IPC channels through renamed require("electron") bindings."""
+    main_aliases, renderer_aliases = set(), set()
+    for m in _REQUIRE_DESTRUCT.finditer(text):
+        for part in m.group(1).split(","):
+            part = part.strip()
+            if ":" in part:
+                orig, alias = (p.strip() for p in part.split(":", 1))
+            else:
+                orig = alias = part
+            if orig == "ipcMain" and alias.isidentifier():
+                main_aliases.add(alias)
+            elif orig == "ipcRenderer" and alias.isidentifier():
+                renderer_aliases.add(alias)
+    for m in _REQUIRE_MODULE.finditer(text):
+        mod = m.group(1)
+        # e.ipcMain.handle("ch") — module-object member access
+        for mm in re.finditer(
+                r"\b" + re.escape(mod) + r"\s*\.\s*ipcMain\s*\.\s*"
+                r"(handle|on|once)\s*\(\s*['\"`]([^'\"`]{1,120})['\"`]", text):
+            ipc_main.setdefault(mm.group(2), set()).add(mm.group(1))
+        for mm in re.finditer(
+                r"\b" + re.escape(mod) + r"\s*\.\s*ipcRenderer\s*\.\s*"
+                r"(invoke|send|sendSync|on|once|postMessage)"
+                r"\s*\(\s*['\"`]([^'\"`]{1,120})['\"`]", text):
+            ipc_renderer.setdefault(mm.group(2), set()).add(mm.group(1))
+    # inline require("electron").ipcMain.handle("ch")
+    for mm in re.finditer(
+            r"require\(\s*['\"]electron['\"]\s*\)\.ipcMain\s*\.\s*"
+            r"(handle|on|once)\s*\(\s*['\"`]([^'\"`]{1,120})['\"`]", text):
+        ipc_main.setdefault(mm.group(2), set()).add(mm.group(1))
+    for mm in re.finditer(
+            r"require\(\s*['\"]electron['\"]\s*\)\.ipcRenderer\s*\.\s*"
+            r"(invoke|send|sendSync|on|once|postMessage)"
+            r"\s*\(\s*['\"`]([^'\"`]{1,120})['\"`]", text):
+        ipc_renderer.setdefault(mm.group(2), set()).add(mm.group(1))
+    for m in _IPC_CALL.finditer(text):
+        alias, method, channel = m.group(1), m.group(2), m.group(3)
+        if alias in main_aliases and method in ("handle", "on", "once"):
+            ipc_main.setdefault(channel, set()).add(method + " (aliased)")
+        elif alias in renderer_aliases:
+            ipc_renderer.setdefault(channel, set()).add(method + " (aliased)")
 _WEBPREFS = re.compile(
     r"webPreferences\s*:\s*\{([^}]{0,2000}?)\}", re.S)
 _FLAG = re.compile(r"(\w+)\s*:\s*(true|false|['\"`][^'\"`]*['\"`])")
@@ -317,6 +375,7 @@ def analyze_electron_dir(dir: str, session_id: str,
             ipc_main.setdefault(m.group(2), set()).add(m.group(1))
         for m in _IPC_RENDERER.finditer(text):
             ipc_renderer.setdefault(m.group(2), set()).add(m.group(1))
+        _extract_ipc_aliased(text, ipc_main, ipc_renderer)
         exposed.update(m.group(1) for m in _EXPOSE.finditer(text))
         shortcuts.update(m.group(1) for m in _SHORTCUT.finditer(text))
         protocols.update(m.group(1) for m in _PROTOCOL.finditer(text))

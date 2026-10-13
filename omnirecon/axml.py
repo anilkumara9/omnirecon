@@ -135,30 +135,48 @@ def _parse(data: bytes) -> AxmlElement | None:
         if ctype == _CHUNK_STRING_POOL:
             strings, _ = _decode_string_pool(data, off)
         elif ctype == _CHUNK_NS_START:
-            prefix_idx, uri_idx = struct.unpack_from("<II", data, off + 8)
+            # ResXMLTree_node header (16 bytes incl. lineNumber+comment),
+            # then ResXMLTree_namespaceExt: prefix(int32) + uri(int32).
+            prefix_idx, uri_idx = struct.unpack_from("<ii", data, off + 16)
             prefix = strings[prefix_idx] if 0 <= prefix_idx < len(strings) else ""
-            ns_map[uri_idx] = prefix
+            if uri_idx >= 0:
+                ns_map[uri_idx] = prefix
         elif ctype == _CHUNK_EL_START:
-            # ResXMLTree_node: header(8) + lineNumber(4) + ns(4) + name(4),
-            # then ResXMLTree_attrExt: 6 x uint16
-            _line_no, ns_idx, name_idx = struct.unpack_from(
-                "<III", data, off + 8)
-            (attr_start, attr_size, attr_count,
+            # ResXMLTree_node: header(8) + lineNumber(4) + comment(4),
+            # then ResXMLTree_element: ns(int32) + name(int32),
+            # then ResXMLTree_attrExt: 6 x uint16.
+            # NOTE: the attrExt's first u16 ("attributeStart") is unreliable
+            # across aapt versions (observed 20 on real APKs where attributes
+            # actually begin at the fixed header end). Attributes always
+            # follow the fixed 36-byte element header; validate by bounds.
+            _line_no, _comment, ns_idx, name_idx = struct.unpack_from(
+                "<IIii", data, off + 8)
+            (_attr_start_raw, attr_size, attr_count,
              _id_idx, _class_idx, _style_idx) = struct.unpack_from(
-                "<HHHHHH", data, off + 20)
+                "<HHHHHH", data, off + 24)
+            attr_base = off + 36
+            if not (0 < attr_count < 256 and attr_base + attr_count * attr_size
+                    <= off + size):
+                # Fall back to the declared start when the fixed layout
+                # does not validate (defensive; not observed in the wild).
+                alt = off + _attr_start_raw
+                if 0 < attr_count < 256 and off < alt < off + size:
+                    attr_base = alt
+                else:
+                    attr_count = 0
             name = strings[name_idx] if 0 <= name_idx < len(strings) else "?"
             el = AxmlElement(name)
             for i in range(attr_count):
-                aoff = off + attr_start + i * attr_size
+                aoff = attr_base + i * attr_size
                 if aoff + 20 > len(data):
                     break
-                # ResXMLTree_attribute: ns(I) name(I) rawValue(I)
+                # ResXMLTree_attribute: ns(i) name(i) rawValue(i)
                 #   + Res_value: size(H) res0(B) dataType(B) data(I) = 20 bytes
                 (a_ns, a_name_idx, _raw, _vsize, _res0,
-                 dtype, adata) = struct.unpack_from("<IIIHBBI", data, aoff)
+                 dtype, adata) = struct.unpack_from("<iiiHBBI", data, aoff)
                 aname = strings[a_name_idx] \
                     if 0 <= a_name_idx < len(strings) else "?"
-                prefix = ns_map.get(a_ns, "")
+                prefix = ns_map.get(a_ns, "") if a_ns >= 0 else ""
                 qname = f"{prefix}:{aname}" if prefix else aname
                 el.attrs[qname] = _typed_value_to_str(dtype, adata, strings)
             if stack:

@@ -24,11 +24,11 @@ def test_consistency_flags_unrendered_routes():
     sid = "test-consistency"
     _mk_session(sid, [
         {"type": "route", "title": "Route /a", "route": "https://x.test/a",
-         "classification": "OBSERVED"},
+         "classification": "OBSERVED", "engine": "static"},
         {"type": "route", "title": "Route /b", "route": "https://x.test/b",
-         "classification": "OBSERVED"},
-        {"type": "page", "title": "Page /a", "route": "https://x.test/a",
-         "classification": "OBSERVED"},
+         "classification": "OBSERVED", "engine": "static"},
+        {"type": "route", "title": "Page /a", "route": "https://x.test/a",
+         "classification": "OBSERVED", "engine": "rendered"},
     ])
     res = DD.verify_consistency(sid)
     assert res["contradictions"] == 1, res

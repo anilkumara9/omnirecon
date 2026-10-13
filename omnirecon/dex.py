@@ -386,13 +386,17 @@ def summarize_parsed(parsed: dict | None, session_id: str,
         more = f" (+{len(sigs) - 12} more)" if len(sigs) > 12 else ""
         _record(
             session_id, "note",
-            f"DEX {cat} APIs: {len(sigs)} refs ({dex_name})",
-            f"Method references touching {cat} APIs: {sample}{more}. "
-            f"These are what the app *does* — cross-check against the "
-            f"manifest's declared permissions.",
-            "SOURCE_VERIFIED", 0.9,
-            "method-id table matched against API patterns",
-            [origin], engine="binary")
+            f"DEX {cat} API refs: {len(sigs)} ({dex_name})",
+            f"Method *references* touching {cat} APIs: {sample}{more}. "
+            f"References are not confirmed calls — bundled-but-unused SDKs "
+            f"(e.g. BillingClient in a free app) appear here. Cross-check "
+            f"against the manifest's declared permissions; dynamic "
+            f"instrumentation (Frida) is needed to confirm execution.",
+            "SOURCE_VERIFIED", 0.8,
+            "method-id table matched against API patterns; refs, not calls",
+            [origin], engine="binary",
+            limitations="Static references only — no call-graph or "
+                        "execution confirmation.")
     return {"ok": True, "dex": dex_name, "origin": origin,
             "class_count": parsed["class_count"],
             "method_count": parsed["method_count"],
