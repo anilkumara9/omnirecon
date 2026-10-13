@@ -13,6 +13,7 @@ UNVERIFIED/BLOCKED explicitly — nothing is invented.
 from __future__ import annotations
 
 import datetime
+import re
 from collections import Counter
 
 VALID_CLASS = ("OBSERVED", "SOURCE_VERIFIED", "INFERRED", "UNVERIFIED", "BLOCKED")
@@ -469,6 +470,193 @@ def _priorities(findings: list[dict]) -> dict:
             "nothing to prioritize yet.",
             [], "BLOCKED", 1.0, "no findings at all"))
     return _section("priorities", bullets)
+
+
+# ---------------------------------------------------------------------------
+# machine-readable build manifest
+# ---------------------------------------------------------------------------
+
+# Sections whose INFERRED bullets are load-bearing for a rebuild (others are
+# advisory prose and don't become strengthen-tasks).
+_LOAD_BEARING = {"routes", "api_inventory", "components", "user_journeys",
+                 "functional_requirements"}
+
+
+def _manifest_bullets(spec: dict, name: str) -> list[dict]:
+    sections = (spec or {}).get("sections", {}) or {}
+    s = sections.get(name, {}) or {}
+    return [b for b in (s.get("bullets", []) or []) if isinstance(b, dict)]
+
+
+def generate_manifest(spec: dict, graph=None) -> list[dict]:
+    """Build a machine-readable, ordered task list from a generated spec.
+
+    One task per route / endpoint / workflow bullet, plus one task per
+    BLOCKED / UNVERIFIED / load-bearing INFERRED bullet. Deterministic:
+    the same spec always yields the same task list.
+
+    Task shape: {id, title, section, finding_ids, priority, depends_on,
+    acceptance, status}. Ordering: P0 (unblock) -> P1 (verify) -> P2
+    (strengthen) -> P3 (build: routes, then endpoints, then workflows, so a
+    workflow depends_on the route tasks it visits — wired from graph edges
+    when available, else substring matching on bullet text).
+    """
+    g = _graph_of(graph)
+    tasks: list[dict] = []
+    seq = [0]
+
+    def _tid() -> str:
+        seq[0] += 1
+        return f"T-{seq[0]:03d}"
+
+    def _mk(title: str, section: str, fids, priority: str,
+            depends_on=None, acceptance=None) -> dict:
+        return {
+            "id": _tid(),
+            "title": title[:140],
+            "section": section,
+            "finding_ids": sorted(set(fids or [])),
+            "priority": priority,
+            "depends_on": list(depends_on or []),
+            "acceptance": list(acceptance or []),
+            "status": "pending",
+        }
+
+    # graph index: finding id -> route keys it visits; node id -> route key
+    node_route: dict = {}
+    visits: dict = {}
+    for n in g.get("nodes", []):
+        if isinstance(n, dict) and n.get("kind") == "route":
+            key = n.get("route") or n.get("label")
+            if n.get("id") and key:
+                node_route[n["id"]] = key
+    for e in g.get("edges", []):
+        if isinstance(e, dict) and e.get("rel") == "visits" \
+                and e.get("from") and e.get("to"):
+            visits.setdefault(e["from"], set()).add(e["to"])
+
+    test_bullets = _manifest_bullets(spec, "test_plan")
+
+    def _acceptance(fids) -> list[str]:
+        fset = set(fids or [])
+        out = []
+        for b in test_bullets:
+            if fset & set(b.get("finding_ids", []) or []):
+                t = b.get("text", "")
+                if t and t not in out:
+                    out.append(t)
+        return out
+
+    # ---- P3: routes (first, so workflows can depend on them) ----
+    route_tasks: dict[str, dict] = {}
+    for b in _manifest_bullets(spec, "routes"):
+        text = b.get("text", "") or ""
+        m = re.match(r"^Route (\S+)", text)
+        key = m.group(1) if m else text[:80]
+        if not key:
+            continue
+        if key in route_tasks:
+            t = route_tasks[key]
+            t["finding_ids"] = sorted(set(t["finding_ids"])
+                                      | set(b.get("finding_ids", []) or []))
+            continue
+        t = _mk(f"Build route {key}", "routes",
+                b.get("finding_ids"), "P3",
+                acceptance=_acceptance(b.get("finding_ids")) or
+                [f"recon_compare_build reports route {key} as matched"])
+        route_tasks[key] = t
+        tasks.append(t)
+
+    # ---- P3: endpoints ----
+    for b in _manifest_bullets(spec, "api_inventory"):
+        text = b.get("text", "") or ""
+        if text.startswith("Only endpoints listed above"):
+            continue  # scoping rule, not a build item
+        ep = text.split(" — ")[0].strip() or text[:80]
+        t = _mk(f"Integrate endpoint {ep}", "api_inventory",
+                b.get("finding_ids"), "P3",
+                acceptance=_acceptance(b.get("finding_ids")) or
+                [f"recon_compare_build reports endpoint {ep} as matched"])
+        tasks.append(t)
+
+    # ---- P3: components ----
+    for b in _manifest_bullets(spec, "components"):
+        text = b.get("text", "") or ""
+        if "UNVERIFIED" in text and "recon_inspect_page" in text:
+            continue  # advisory placeholder, not a build item
+        t = _mk(f"Build component: {text[:100]}", "components",
+                b.get("finding_ids"), "P3",
+                acceptance=_acceptance(b.get("finding_ids")))
+        tasks.append(t)
+
+    # ---- P3: workflows (depend on the routes they visit) ----
+    for b in _manifest_bullets(spec, "user_journeys"):
+        text = b.get("text", "") or ""
+        if "UNVERIFIED" in text and "recon_trace_workflow" in text:
+            continue  # advisory placeholder
+        fids = b.get("finding_ids", []) or []
+        deps: list[str] = []
+        for fid in fids:
+            for node_id in visits.get(fid, ()):
+                key = node_route.get(node_id)
+                if key and key in route_tasks and \
+                        route_tasks[key]["id"] not in deps:
+                    deps.append(route_tasks[key]["id"])
+        if not deps:
+            # fallback: substring match of known route keys in bullet text
+            for key, t in route_tasks.items():
+                if key in text and t["id"] not in deps:
+                    deps.append(t["id"])
+        t = _mk(f"Implement workflow: {text[:100]}", "user_journeys",
+                fids, "P3", depends_on=deps,
+                acceptance=_acceptance(fids) or
+                ["replay script from recon_trace_workflow passes against "
+                 "the build"])
+        tasks.append(t)
+
+    # ---- P0/P1/P2: evidence-strength tasks, deduped ----
+    seen: set = set()
+
+    def _ev_task(b, section, band, priority, verb):
+        fids = tuple(sorted(set(b.get("finding_ids", []) or [])))
+        key = (band, fids if fids else (b.get("text", "") or "")[:80])
+        if key in seen:
+            return
+        seen.add(key)
+        text = b.get("text", "") or ""
+        tasks.append(_mk(f"{verb}: {text[:100]}", section,
+                         list(fids), priority))
+
+    for name in SECTION_NAMES:
+        for b in _manifest_bullets(spec, name):
+            cls = b.get("classification", "")
+            if cls == "BLOCKED":
+                _ev_task(b, name, "BLOCKED", "P0", "Resolve BLOCKED evidence")
+            elif cls == "UNVERIFIED":
+                _ev_task(b, name, "UNVERIFIED", "P1", "Verify")
+            elif cls == "INFERRED" and name in _LOAD_BEARING:
+                _ev_task(b, name, "INFERRED", "P2", "Strengthen inference")
+
+    # order: P0 -> P1 -> P2 -> P3, stable within each band
+    order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+    indexed = list(enumerate(tasks))
+    indexed.sort(key=lambda pair: (order.get(pair[1]["priority"], 9), pair[0]))
+    tasks = [t for _, t in indexed]
+
+    if not tasks:
+        tasks.append(_mk(
+            "Run the analysis pipeline (recon_start, recon_discover_routes, "
+            "recon_inspect_page): the ledger is empty and there is nothing "
+            "to build from.", "overview", [], "P0"))
+    # re-number deterministically after sorting
+    for i, t in enumerate(tasks, 1):
+        old = t["id"]
+        new = f"T-{i:03d}"
+        t["id"] = new
+        for other in tasks:
+            other["depends_on"] = [new if d == old else d
+                                   for d in other["depends_on"]]
+    return tasks
 
 
 # ---------------------------------------------------------------------------

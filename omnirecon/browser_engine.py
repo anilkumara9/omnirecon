@@ -97,6 +97,59 @@ def _playwright_dir() -> str:
     return os.path.expanduser("~/.cache/ms-playwright")
 
 
+_BODY_CAP_BYTES = 200 * 1024
+_JSON_CT = ("application/json", "application/hal+json", "application/vnd.api+json")
+
+
+def infer_shape(obj: object, _depth: int = 0, _max_depth: int = 4) -> dict:
+    """Infer a values-free JSON Schema-ish shape: key names + types only.
+
+    Never retains example values — safe for the evidence ledger.
+    """
+    if _depth > _max_depth:
+        return {"type": "any"}
+    if obj is None:
+        return {"type": "null"}
+    if isinstance(obj, bool):
+        return {"type": "boolean"}
+    if isinstance(obj, int):
+        return {"type": "integer"}
+    if isinstance(obj, float):
+        return {"type": "number"}
+    if isinstance(obj, str):
+        return {"type": "string"}
+    if isinstance(obj, list):
+        item_shapes: list[dict] = []
+        seen: set[str] = set()
+        for item in obj[:5]:
+            s = infer_shape(item, _depth + 1, _max_depth)
+            key = json.dumps(s, sort_keys=True)
+            if key not in seen:
+                seen.add(key)
+                item_shapes.append(s)
+        return {"type": "array", "items": item_shapes[:3],
+                "count": len(obj)}
+    if isinstance(obj, dict):
+        props = {}
+        for k in list(obj.keys())[:60]:
+            props[str(k)[:80]] = infer_shape(obj[k], _depth + 1, _max_depth)
+        return {"type": "object", "properties": props,
+                "keys": len(obj)}
+    return {"type": type(obj).__name__}
+
+
+def _looks_json(headers: dict) -> bool:
+    ct = ""
+    try:
+        for k, v in (headers or {}).items():
+            if str(k).lower() == "content-type":
+                ct = str(v).lower()
+                break
+    except Exception:
+        pass
+    return any(t in ct for t in _JSON_CT)
+
+
 def _chromium_executables() -> list[str]:
     base = _playwright_dir()
     return [os.path.join(base, d, exe) for d, _, _, exe in _BROWSER_WANTS]
@@ -446,7 +499,8 @@ class AsyncOwnedBrowser:
                 page, ctx = await self._new_page()
                 pid = self._next_id
                 self._next_id += 1
-                entry = {"page": page, "context": ctx, "net": [], "console": [],
+                entry = {"page": page, "context": ctx, "net": [], "ws": [],
+                         "console": [],
                          "refs": {}, "url": url, "initiators": {}}
                 self._pages[pid] = entry
                 self._attach_listeners(pid, entry)
@@ -473,6 +527,17 @@ class AsyncOwnedBrowser:
         page = entry["page"]
 
         def on_request(req):
+            req_shape = None
+            try:
+                pd = req.post_data
+                if pd and len(pd) < _BODY_CAP_BYTES:
+                    try:
+                        req_shape = infer_shape(json.loads(pd))
+                    except Exception:
+                        req_shape = {"type": "string",
+                                     "bytes": len(pd)}
+            except Exception:
+                pass
             entry["net"].append({
                 "t0": time.monotonic(),
                 "method": req.method,
@@ -481,15 +546,69 @@ class AsyncOwnedBrowser:
                 "status": None,
                 "ms": None,
                 "initiator": None,  # backfilled from CDP at read time
+                "request_shape": req_shape,
+                "response_shape": None,
             })
 
-        def on_response(resp):
+        async def on_response(resp):
             # match the most recent pending request for this URL
+            target = None
             for r in reversed(entry["net"]):
                 if r["url"] == resp.url and r["status"] is None:
-                    r["status"] = resp.status
-                    r["ms"] = int((time.monotonic() - r["t0"]) * 1000)
+                    target = r
                     break
+            if target is None:
+                return
+            target["status"] = resp.status
+            target["ms"] = int((time.monotonic() - target["t0"]) * 1000)
+            # Capture values-free response shapes for XHR/fetch JSON.
+            try:
+                if resp.request.resource_type not in ("xhr", "fetch"):
+                    return
+                headers = {}
+                try:
+                    headers = await resp.all_headers()
+                except Exception:
+                    pass
+                if not _looks_json(headers):
+                    return
+                body = await resp.body()
+                if not body or len(body) > _BODY_CAP_BYTES:
+                    return
+                try:
+                    target["response_shape"] = infer_shape(
+                        json.loads(body.decode("utf-8", "replace")))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        def on_websocket(ws):
+            def _frame(payload, is_received: bool):
+                try:
+                    if len(entry["ws"]) >= 200:
+                        return
+                    shape = None
+                    text = payload if isinstance(payload, str) \
+                        else payload.decode("utf-8", "replace")[:4000]
+                    try:
+                        shape = infer_shape(json.loads(text))
+                    except Exception:
+                        shape = {"type": "text",
+                                 "bytes": len(text)}
+                    entry["ws"].append({
+                        "url": ws.url,
+                        "direction": "received" if is_received else "sent",
+                        "shape": shape,
+                    })
+                except Exception:
+                    pass
+
+            try:
+                ws.on("framesent", lambda p: _frame(p, False))
+                ws.on("framereceived", lambda p: _frame(p, True))
+            except Exception:
+                pass
 
         def on_console(msg):
             if msg.type in ("error", "warning") and len(entry["console"]) < 50:
@@ -501,6 +620,7 @@ class AsyncOwnedBrowser:
 
         page.on("request", on_request)
         page.on("response", on_response)
+        page.on("websocket", on_websocket)
         page.on("console", on_console)
         page.on("pageerror", on_page_error)
 
@@ -619,12 +739,15 @@ class AsyncOwnedBrowser:
         entry = self._get_page_entry(page_id)
         page = entry["page"]
         entry["net"] = []
+        entry["ws"] = []
         try:
             await page.reload(wait_until="domcontentloaded", timeout=30000)
         except Exception as e:
             raise ReconError("capture_failed",
                              f"reload for capture failed: {e}"[:250]) from e
         await page.wait_for_timeout(max(500, min(int(duration_ms), 30000)))
+        # let async body captures settle
+        await page.wait_for_timeout(1500)
         self._backfill_initiators(entry)
         out = []
         for r in entry["net"]:
@@ -635,8 +758,17 @@ class AsyncOwnedBrowser:
                 "type": r["type"],
                 "ms": r["ms"],
                 "initiator": r.get("initiator"),
+                "request_shape": r.get("request_shape"),
+                "response_shape": r.get("response_shape"),
             })
-        return _redact(out)
+        ws_frames = []
+        for f in entry.get("ws", []):
+            ws_frames.append({
+                "url": f["url"],
+                "direction": f["direction"],
+                "shape": f["shape"],
+            })
+        return {"requests": _redact(out), "websocket_frames": _redact(ws_frames)}
 
     def console_errors(self, page_id: int) -> list[str]:
         entry = self._get_page_entry(page_id)

@@ -1,13 +1,18 @@
 # OmniRecon MCP
 
-**Give any AI coding agent the power to reverse-engineer a web platform — accurately, with evidence.**
+<p align="center">
+  <img src="assets/mascot.webp" alt="OmniRecon mascot — the reverse-engineering bot" width="320" />
+</p>
 
-OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL or a
-codebase and it runs an autonomous recon pipeline: rapid fingerprinting, a real
-headless browser that crawls routes, clicks through workflows and captures live
-network traffic, source-code analysis — fusing everything into a classified
-evidence ledger, then generating a reconstruction blueprint where every claim
-traces back to the observation that produced it.
+**Give any AI coding agent the power to reverse-engineer any software — accurately, with evidence.**
+
+OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL, an
+API doc, a codebase, or a shipped binary/APK and it runs an autonomous recon
+pipeline: rapid fingerprinting, a real headless browser that crawls routes,
+clicks through workflows and captures live network traffic, source-code
+analysis — fusing everything into a classified evidence ledger, then generating
+a reconstruction blueprint where every claim traces back to the observation that
+produced it.
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://developers.openai.com/codex), Cursor, Windsurf, Zed, and any
@@ -78,7 +83,7 @@ ledger when REA is installed with a configured provider. Full analysis in
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
 | `recon_inspect_page` | Rendered DOM, controls, forms, a11y data, 3-viewport screenshots, console errors. |
 | `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. **Auto-emits a replayable Playwright script** per trace. |
-| `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. |
+| `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. Captures **values-free request/response shapes** (`type:"schema"` findings) and WebSocket message shapes. |
 | `recon_analyze_source` | AST route extraction, components, state management, migrations, auth files, env-var names. |
 | `recon_analyze_artifact` | APK/IPA/native-binary/JS-bundle intel: format, symbols, manifest, string-mined URLs; REA deep-dive when available. |
 | `recon_verify_consistency` | **Cross-engine accuracy check**: static crawl vs rendered pages vs JS bundles vs network capture. Agreements corroborated, contradictions downgraded — never silently dropped. |
@@ -112,6 +117,12 @@ them. Where OmniRecon wins is everything they *don't* do:
 5. **One front door.** Web, API docs, repos, binaries — one session, one
    evidence ledger, one 15-section rebuild spec. The agent never routes by
    guesswork.
+6. **It sees data, not just structure.** Response/request body shapes,
+   WebSocket message schemas, and binary-XML manifests — values-free,
+   secrets-redacted, and classified. Nobody else ships this in an MCP.
+7. **The loop has memory.** Every `recon_compare_build` persists with trend
+   deltas; the spec emits a machine-readable `tasks.json` work queue. The
+   agent iterates toward parity instead of guessing.
 
 Every tool degrades honestly: on failure you get
 `{"error", "code", "hint"}` — never a traceback, never invented data.
@@ -135,12 +146,34 @@ Run the server (stdio transport):
 
 ## Connecting your agent
 
-### Claude Code
+OmniRecon is a **stdio MCP server**: one Python process, no ports, no daemons.
+Every integration below registers the same thing — the Python interpreter from
+your virtualenv running `omnirecon/server.py`. Replace `/path/to/omnirecon`
+with your clone location and use the venv Python (not system Python), so the
+pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve.
+
+### Claude Code (CLI)
 
 ```bash
 claude mcp add omnirecon -- /path/to/omnirecon/.venv/bin/python /path/to/omnirecon/omnirecon/server.py
-claude mcp list   # verify it shows up
+claude mcp list          # verify it shows up
 ```
+
+Project-scoped (shared with your team via `.mcp.json` in the repo root):
+
+```json
+{
+  "mcpServers": {
+    "omnirecon": {
+      "command": "/path/to/omnirecon/.venv/bin/python",
+      "args": ["/path/to/omnirecon/omnirecon/server.py"]
+    }
+  }
+}
+```
+
+Then just ask: *"Reverse-engineer https://example.com — explain how it works
+and give me a rebuild plan."*
 
 ### Codex CLI
 
@@ -152,28 +185,92 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-### Any other MCP client / IDE (Cursor, Windsurf, Zed…)
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 18 tools.
 
-Register a stdio MCP server with:
+### Cursor
 
-- command: `/path/to/omnirecon/.venv/bin/python`
-- args: `["/path/to/omnirecon/omnirecon/server.py"]`
+1. Open **Settings → MCP** (or `~/.cursor/mcp.json`).
+2. Add:
+
+```json
+{
+  "mcpServers": {
+    "omnirecon": {
+      "command": "/path/to/omnirecon/.venv/bin/python",
+      "args": ["/path/to/omnirecon/omnirecon/server.py"]
+    }
+  }
+}
+```
+
+3. Toggle the server on. In Agent mode, ask it to reverse-engineer a target —
+   Cursor will call the tools itself.
+
+### Windsurf
+
+1. Open **Settings → Cascade → MCP servers** (or `~/.codeium/windsurf/mcp_config.json`).
+2. Add the same `mcpServers` JSON block as Cursor above.
+3. Restart Windsurf. The tools appear in Cascade's tool list.
+
+### Zed
+
+Add to your Zed settings (`~/.config/zed/settings.json`):
+
+```json
+{
+  "context_servers": {
+    "omnirecon": {
+      "command": "/path/to/omnirecon/.venv/bin/python",
+      "args": ["/path/to/omnirecon/omnirecon/server.py"]
+    }
+  }
+}
+```
+
+Restart Zed. Use the assistant panel — it can now drive recon sessions.
+
+### Any other MCP client
+
+Any client that speaks MCP over stdio works: register a server with
+
+- **command:** `/path/to/omnirecon/.venv/bin/python`
+- **args:** `["/path/to/omnirecon/omnirecon/server.py"]`
+- **transport:** stdio (the default — no SSE/HTTP needed)
 
 ### No MCP support? Use the CLI
 
-All 18 tools are mirrored as CLI commands running the same code:
+All 18 tools are mirrored as CLI commands running the same code — useful for
+scripts, CI, or agents without MCP:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
-.venv/bin/python -m omnirecon.cli --help
+.venv/bin/python -m omnirecon.cli recon-discover-routes <session-id> https://example.com --max-pages 40
+.venv/bin/python -m omnirecon.cli recon-generate-spec <session-id>
+.venv/bin/python -m omnirecon.cli --help   # all 18 commands
 ```
+
+Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
+interchangeable — start in one, continue in the other.
+
+### What the agent does with it (the superpower loop)
+
+Once connected, the agent follows the bundled skill
+([`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)) — a staged workflow
+it reads itself:
+
+1. `recon_start` — validate the target (URL, API doc, repo, APK/binary) and get
+   rapid recon in seconds.
+2. Deep engines — crawl routes, inspect pages, trace workflows, capture network,
+   analyze source/artifacts.
+3. `recon_verify_consistency` — cross-check every engine against the others;
+   contradictions get downgraded, never hidden.
+4. `recon_generate_spec` — a 15-section rebuild blueprint where every claim
+   cites its evidence.
+5. Build, then `recon_compare_build` — diff the rebuild against the original
+   and iterate until parity.
 
 Restart the agent after registering, then just ask:
 *"Reverse-engineer https://example.com — explain how it works and give me a rebuild plan."*
-
-The bundled agent skill at [`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)
-teaches the agent the staged workflow, the evidence-label discipline, and when
-to route a target to REA instead.
 
 ## Agent workflow example
 

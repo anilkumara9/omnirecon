@@ -704,8 +704,15 @@ def recon_capture_network(session_id: str, url: str,
             try:
                 browser, page = _goto_resilient(browser, bmod, url,
                                                 session_id, mgr)
-                capture = {"requests": browser.network_capture(
-                    page.get("page_id"), duration_ms)}
+                raw = browser.network_capture(
+                    page.get("page_id"), duration_ms)
+                # browser engine returns {requests, websocket_frames};
+                # older shapes return a bare list.
+                if isinstance(raw, dict) and "requests" in raw:
+                    capture = raw
+                else:
+                    capture = {"requests": raw if isinstance(raw, list) else [],
+                               "websocket_frames": []}
             finally:
                 browser.close()
         except Exception:
@@ -715,10 +722,13 @@ def recon_capture_network(session_id: str, url: str,
         if raw.get("error"):
             return _err("network capture failed", "internal",
                         raw["error"][:300])
-        capture = {"requests": raw.get("api_requests", [])}
+        capture = {"requests": raw.get("api_requests", []),
+                   "websocket_frames": []}
 
     capture = _redact(capture)
     reqs = capture.get("requests", []) if isinstance(capture, dict) else []
+    ws_frames = capture.get("websocket_frames", []) \
+        if isinstance(capture, dict) else []
     seen_eps: dict[str, dict] = {}
     for r in reqs:
         u = r.get("url", "")
@@ -729,16 +739,57 @@ def recon_capture_network(session_id: str, url: str,
         f"status={r.get('status')} type={r.get('type')}",
         "OBSERVED", 0.95, "request actually issued by the page in the browser",
         sources=[url], endpoint=u) for u, r in list(seen_eps.items())[:150]]
+    # values-free request/response shapes → schema findings (the keystone:
+    # the agent gets data shapes, never example values)
+    for u, r in list(seen_eps.items())[:150]:
+        for kind, shape in (("request", r.get("request_shape")),
+                            ("response", r.get("response_shape"))):
+            if not isinstance(shape, dict):
+                continue
+            keys = ""
+            if shape.get("type") == "object":
+                props = shape.get("properties", {})
+                keys = ", ".join(list(props.keys())[:12])
+            f = _finding(
+                "schema", f"{kind.title()} shape: {r.get('method', 'GET')} {u[:80]}",
+                f"Observed {kind} shape — keys: {keys or shape.get('type')}. "
+                f"Shapes only; no example values retained.",
+                "OBSERVED", 0.9,
+                f"{kind} body captured live and reduced to key/type shape",
+                sources=[url], endpoint=u)
+            f["shape"] = shape
+            f["shape_kind"] = kind
+            items.append(f)
+    # websocket message shapes
+    ws_clusters: dict[str, dict] = {}
+    for f in ws_frames:
+        key = json.dumps(f.get("shape", {}), sort_keys=True)[:200]
+        ws_clusters[key] = f
+    for f in list(ws_clusters.values())[:40]:
+        shape = f.get("shape", {})
+        keys = ", ".join(
+            list(shape.get("properties", {}).keys())[:8]
+        ) if shape.get("type") == "object" else shape.get("type", "")
+        items.append(_finding(
+            "note", f"WebSocket {f.get('direction')}: {f.get('url', '')[:70]}",
+            f"Message shape — keys: {keys}. Shapes only; no payload values.",
+            "OBSERVED", 0.85, "websocket frame captured live in the browser",
+            sources=[url]))
     ids = _ledger_add(session_id, mgr, items)
     _audit(session_id, "capture_network",
-           f"{url} requests={len(reqs)} endpoints={len(ids)}")
+           f"{url} requests={len(reqs)} endpoints={len(ids)} "
+           f"ws_frames={len(ws_frames)}")
     return {"url": url, "requests_observed": len(reqs),
             "unique_endpoints": len(seen_eps),
+            "websocket_frames": len(ws_frames),
             "endpoints": [{"method": r.get("method"), "url": u,
-                           "status": r.get("status"), "type": r.get("type")}
+                           "status": r.get("status"), "type": r.get("type"),
+                           "has_request_shape": bool(r.get("request_shape")),
+                           "has_response_shape": bool(r.get("response_shape"))}
                           for u, r in list(seen_eps.items())[:150]],
             "finding_ids": ids,
-            "note": "credentials/cookies/tokens redacted before storage"}
+            "note": "credentials/cookies/tokens redacted before storage; "
+                    "only key/type shapes retained, never example values"}
 
 
 @mcp.tool()
@@ -1072,9 +1123,83 @@ def recon_generate_spec(session_id: str) -> dict:
         mgr.checkpoint(session_id)
     except Exception:
         pass
+    # Machine-readable build manifest: ordered task list for the rebuild loop.
+    manifest = []
+    manifest_path = ""
+    try:
+        manifest = SPEC.generate_manifest(spec, graph)
+        manifest_path = str(SESSIONS_ROOT / session_id / "tasks.json")
+        with open(manifest_path, "w") as fh:
+            json.dump(manifest, fh, indent=2, ensure_ascii=False, default=str)
+    except Exception:
+        manifest = []
+        manifest_path = ""
     _audit(session_id, "generate_spec",
-           f"findings={len(findings)} sections={len(spec.get('sections', {}))}")
+           f"findings={len(findings)} sections={len(spec.get('sections', {}))} "
+           f"tasks={len(manifest)}")
+    spec["manifest"] = manifest
+    spec["manifest_path"] = manifest_path
     return spec
+
+
+def _attach_deviation_evidence(session_id: str, result: dict) -> dict:
+    """Join each deviation against the evidence ledger so fix-iterations can
+    see exactly which findings define the missing route/endpoint. Additive
+    only; never raises."""
+    try:
+        findings = _read_ledger(session_id)
+    except Exception:
+        return result
+    from urllib.parse import urlparse as _up
+
+    def _path(u: str) -> str:
+        try:
+            p = _up(u).path or "/"
+        except Exception:
+            return u
+        return p if p.startswith("/") else "/" + p
+
+    def _norm_ep(ep: str) -> str:
+        ep = (ep or "").strip()
+        if "://" in ep or ep.startswith("//"):
+            return _path("https:" + ep if ep.startswith("//") else ep
+                         ).rstrip("/") or "/"
+        return ("/" + ep.lstrip("/")).split("?")[0].rstrip("/") or "/"
+
+    route_index: dict[str, list[dict]] = {}
+    ep_index: dict[str, list[dict]] = {}
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        if f.get("route"):
+            route_index.setdefault(_path(f["route"]), []).append(f)
+        if f.get("endpoint"):
+            ep_index.setdefault(_norm_ep(f["endpoint"]), []).append(f)
+
+    missing_routes = set((result.get("route_coverage", {}) or {})
+                         .get("missing", []) or [])
+    missing_eps = set((result.get("endpoint_overlap", {}) or {})
+                      .get("missing", []) or [])
+
+    for d in result.get("deviations", []) or []:
+        if not isinstance(d, dict):
+            continue
+        kind = d.get("kind", "")
+        matched: list[dict] = []
+        if kind == "missing_route":
+            for r in missing_routes:
+                if r in (d.get("detail", "") or ""):
+                    matched.extend(route_index.get(r, []))
+        elif kind == "missing_endpoint":
+            for e in missing_eps:
+                if e in (d.get("detail", "") or ""):
+                    matched.extend(ep_index.get(e, []))
+        if matched:
+            fids = sorted({f.get("id") for f in matched if f.get("id")})
+            srcs = sorted({s for f in matched
+                           for s in (f.get("sources", []) or []) if s})[:5]
+            d["evidence_refs"] = {"finding_ids": fids, "sources": srcs}
+    return result
 
 
 @mcp.tool()
@@ -1094,6 +1219,17 @@ def recon_compare_build(session_id: str, build_url: str) -> dict:
         result = VERIFY.compare_build(session_id, build_url.strip())
     except Exception as e:  # noqa: BLE001
         return _err("build comparison failed", "internal", str(e)[:300])
+    # Loop memory: persist the run, attach a trend vs the previous run, and
+    # cite the evidence behind each deviation. Never breaks the tool.
+    try:
+        prev_runs = VERIFY.list_comparisons(session_id)
+        prev = prev_runs[-1] if prev_runs else None
+        result["trend"] = VERIFY.compute_trend(result, prev)
+        result = _attach_deviation_evidence(session_id, result)
+        result["comparison_path"] = VERIFY.save_comparison(session_id, result)
+        result["comparison_runs"] = len(prev_runs) + 1
+    except Exception:
+        pass
     _audit(session_id, "compare_build", build_url.strip())
     return result
 

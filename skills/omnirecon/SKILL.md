@@ -56,7 +56,7 @@ use the first row that fits.
 | Any multi-engine session | `recon_verify_consistency` before `recon_generate_spec` | Corroborated findings get SOURCE_VERIFIED; contradictions downgraded with reasons — this is the accuracy step |
 | JS-heavy SPA, need original sources | `recon_recover_sourcemaps` | Recovers the webpack/vite/parcel file tree from published .map files |
 | API surface needs live truth | `recon_probe_endpoints` | HEAD→GET per discovered /api/* endpoint; live/dead verdicts with status codes |
-| Native binary / APK / firmware | STOP — use REA, not OmniRecon | Feed REA's findings back as cited evidence if you continue here |
+| Firmware / .NET / EVM bytecode | STOP — use REA directly, not OmniRecon | OmniRecon's artifact lane covers APK/IPA/ELF/PE/Mach-O/JS; exotic formats go to REA, then feed findings back as cited evidence |
 
 If the target doesn't match any row, ask the user what it is before burning
 tool calls. Never route by guesswork.
@@ -85,16 +85,51 @@ Sessions are resumable. Every tool takes `session_id` from `recon_start`.
    rendered DOM, controls, forms, screenshots (desktop/tablet/mobile), console
    errors.
 5. **Capture** — `recon_capture_network(session_id, url)` on JS-heavy pages:
-   the real XHR/fetch/WebSocket calls, redacted before storage.
+   the real XHR/fetch/WebSocket calls, redacted before storage. Captures
+   values-free request/response *shapes* (key names + types, never example
+   values) as `type:"schema"` findings, plus WebSocket message shapes.
 6. **Source** (if authorized) — `recon_analyze_source(session_id, path_or_repo)`.
-7. **Blueprint** — `recon_generate_spec(session_id)`. The 14-section
-   reconstruction spec, every claim linked to finding IDs.
-8. **Export** — `recon_export_report(session_id, format="markdown")`.
-9. **Verify** (optional) — `recon_compare_build(session_id, build_url)` after
-   you rebuild; reports route coverage and deviations.
+7. **Consistency** — `recon_verify_consistency(session_id)` before the
+   blueprint. Cross-checks every engine against the others; contradictions
+   are downgraded with reasons, never hidden.
+8. **Blueprint** — `recon_generate_spec(session_id)`. The 15-section
+   reconstruction spec, every claim linked to finding IDs, plus a
+   machine-readable `tasks.json` build manifest (ordered P0→P3).
+9. **Export** — `recon_export_report(session_id, format="markdown")`, or
+   `format="openapi"` for a rebuildable OpenAPI 3.1 document with
+   per-path evidence provenance and observed request/response schemas.
+10. **Rebuild loop** — build from the manifest in order, then
+    `recon_compare_build(session_id, build_url)`: per-route/per-endpoint
+    pass-fail deviations with evidence citations, plus a `trend` block when
+    a previous run exists (fixed since last, new missing). Fix deviations,
+    re-compare. Done = coverage thresholds hold across two consecutive runs.
 
 Fast path for "just tell me what this site is": `recon_start` alone is often
 enough. Go deeper only where the blueprint has UNVERIFIED gaps that matter.
+
+## Anti-patterns (what failure looks like)
+
+- Treating 100% route coverage as "done" while workflows are unverified —
+  `recon_compare_build` checks presence; replay the trace scripts for behavior.
+- Building backend logic from INFERRED endpoint bullets — the contract is real,
+  the implementation is yours to design; never present invented behavior as
+  observed.
+- Re-running recon instead of fixing the deviation — the deviation cites its
+  evidence; fix the build, don't re-scan the target.
+- Quoting a BLOCKED finding as a limitation of the *target* — it's a limitation
+  of *your access*; convert it into a crisp user request (test credentials,
+  API docs, design files).
+- Ignoring `confidence_why` — the number means nothing without the reason.
+
+## Confidence → action thresholds
+
+- **≥0.9 (OBSERVED/SOURCE_VERIFIED)** — build directly on it.
+- **0.5–0.9 (INFERRED)** — verify first: probe it, render it, or cross-check it
+  before building on it.
+- **<0.5 (UNVERIFIED)** — never build on it without user confirmation; it's a
+  research task, not a fact.
+- **BLOCKED** — stop, document the wall, ask the user for access. Do not
+  route around it.
 
 ## Evidence classifications — read these before quoting findings
 

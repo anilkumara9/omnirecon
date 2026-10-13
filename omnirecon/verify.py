@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -19,6 +20,10 @@ SESSIONS_ROOT = Path(__file__).resolve().parent.parent / "sessions"
 
 def _utcnow() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def _utc_stamp() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _load_findings(session_id: str) -> list[dict]:
@@ -51,6 +56,86 @@ def _norm_endpoint(ep: str) -> str:
     if "://" in ep or ep.startswith("//"):
         return _path_of("https:" + ep if ep.startswith("//") else ep).rstrip("/") or "/"
     return ("/" + ep.lstrip("/")).split("?")[0].rstrip("/") or "/"
+
+
+# ---------------------------------------------------------------------------
+# persistence: comparison run history per session
+# ---------------------------------------------------------------------------
+
+def _comparisons_dir(session_id: str) -> Path:
+    d = SESSIONS_ROOT / session_id / "comparisons"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def save_comparison(session_id: str, result: dict) -> str:
+    """Persist a compare_build result to
+    sessions/<sid>/comparisons/<utc>_<build-host>.json. Returns the path."""
+    host = urlparse(result.get("build_url", "") or "").netloc or "unknown-host"
+    safe_host = re.sub(r"[^A-Za-z0-9._-]", "_", host)[:80]
+    path = _comparisons_dir(session_id) / f"{_utc_stamp()}_{safe_host}.json"
+    path.write_text(json.dumps(result, indent=2, ensure_ascii=False,
+                               default=str))
+    return str(path)
+
+
+def list_comparisons(session_id: str) -> list[dict]:
+    """Load all persisted comparison runs for a session, oldest first.
+    Corrupt files are skipped; an empty list means no history."""
+    d = SESSIONS_ROOT / session_id / "comparisons"
+    if not d.exists():
+        return []
+    runs = []
+    for p in sorted(d.glob("*.json")):
+        try:
+            obj = json.loads(p.read_text())
+        except Exception:
+            continue
+        if isinstance(obj, dict):
+            runs.append(obj)
+    return runs
+
+
+def compute_trend(current: dict, previous: dict | None) -> dict:
+    """Diff a fresh compare_build result against a stored previous run.
+
+    Only real stored data is used. With no previous run the trend says so
+    honestly instead of inventing a baseline.
+    """
+    if not isinstance(previous, dict) or not previous:
+        return {
+            "previous_run": None,
+            "runs_compared": 1,
+            "note": "No previous comparison stored for this session; this "
+                    "run is the baseline. Fix the deviations, then run "
+                    "recon_compare_build again to see a trend.",
+        }
+    cur_rc = current.get("route_coverage", {}) or {}
+    prev_rc = previous.get("route_coverage", {}) or {}
+    cur_eo = current.get("endpoint_overlap", {}) or {}
+    prev_eo = previous.get("endpoint_overlap", {}) or {}
+
+    cur_missing = set(cur_rc.get("missing", []) or {}) | \
+        set(cur_eo.get("missing", []) or {})
+    prev_missing = set(prev_rc.get("missing", []) or {}) | \
+        set(prev_eo.get("missing", []) or {})
+
+    cur_matched_e = cur_eo.get("matched", []) or []
+    prev_matched_e = prev_eo.get("matched", []) or []
+
+    return {
+        "previous_run": previous.get("checked_utc"),
+        "previous_build_url": previous.get("build_url"),
+        "runs_compared": 2,
+        "routes_delta_matched": (cur_rc.get("matched") or 0)
+                                - (prev_rc.get("matched") or 0),
+        "endpoints_delta_matched": len(cur_matched_e) - len(prev_matched_e),
+        "fixed_since_last": sorted(prev_missing - cur_missing),
+        "new_missing": sorted(cur_missing - prev_missing),
+        "still_missing": sorted(cur_missing & prev_missing),
+        "note": "Deltas computed from stored comparison runs only; "
+                "fixed_since_last lists items missing before and matched now.",
+    }
 
 
 def compare_build(session_id: str, build_url: str) -> dict:

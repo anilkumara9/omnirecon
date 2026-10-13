@@ -31,17 +31,21 @@ def _run(cmd: list[str], timeout: int = 60) -> tuple[int, str]:
         return 127, f"exec failed: {e}"[:200]
 
 
+def _session_dir(session_id: str) -> str:
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "sessions", session_id)
+
+
 def _record(session_id: str, ftype: str, title: str, detail: str,
             classification: str, confidence: float, why: str,
             sources: list[str], **kw) -> None:
     """Append a finding to sessions/<sid>/evidence.jsonl (persisted)."""
     try:
         from omnirecon import evidence as ev
-        sessions_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "sessions")
-        os.makedirs(os.path.join(sessions_dir, session_id), exist_ok=True)
-        ledger_path = os.path.join(sessions_dir, session_id, "evidence.jsonl")
+        sdir = _session_dir(session_id)
+        os.makedirs(sdir, exist_ok=True)
+        ledger_path = os.path.join(sdir, "evidence.jsonl")
         ledger = ev.EvidenceLedger.load(ledger_path) \
             if os.path.exists(ledger_path) else ev.EvidenceLedger()
         ledger.add({"type": ftype, "title": title, "detail": detail[:2000],
@@ -70,6 +74,14 @@ def file_kind(path: str) -> str:
         return "dex"
     if path.lower().endswith(".js"):
         return "jsbundle"
+    if path.lower().endswith(".asar"):
+        return "asar"
+    try:
+        from omnirecon import electron_intel as EI
+        if EI.is_asar(path):
+            return "asar"
+    except Exception:
+        pass
     return "unknown"
 
 
@@ -130,34 +142,66 @@ def _analyze_apk(session_id: str, path: str, out: dict) -> None:
                     break
     except Exception as e:
         out["zip_error"] = str(e)[:200]
-    manifest_text = manifest_raw.decode("utf-8", "replace")
-    pkg = re.search(r'package="([\w.]+)"', manifest_text)
-    package = pkg.group(1) if pkg else None
-    if not package:
-        # binary XML: fall back to string mining
-        code, st = _run(["strings", path])
-        m = re.search(r"[\w]+(?:\.[\w]+){2,}", st) if code == 0 else None
-        package = m.group(0) if m else None
-    perms = sorted(set(re.findall(
-        r"android\.permission\.[\w_]+", manifest_text)))
-    activities = len(re.findall(r"<activity", manifest_text))
+
+    # Binary XML (AXML) is what production APKs ship — decode it properly.
+    summary: dict | None = None
+    try:
+        from omnirecon import axml as AX
+        root = AX.parse(manifest_raw)
+        if root is not None:
+            summary = AX.manifest_summary(root)
+    except Exception:
+        summary = None
+
+    package = (summary or {}).get("package") or None
+    perms = (summary or {}).get("permissions") or []
+    activities = (summary or {}).get("activities") or []
+    services = (summary or {}).get("services") or []
+    receivers = (summary or {}).get("receivers") or []
+    providers = (summary or {}).get("providers") or []
+    deep_links = (summary or {}).get("deep_links") or []
     has_dex = any(e.endswith(".dex") for e in entries)
     has_so = [e for e in entries if e.endswith(".so")][:20]
     out.update({"format": "APK", "package": package,
-                "permissions": perms[:60], "activity_count": activities,
+                "version_name": (summary or {}).get("version_name", ""),
+                "min_sdk": (summary or {}).get("min_sdk", ""),
+                "target_sdk": (summary or {}).get("target_sdk", ""),
+                "permissions": perms[:60],
+                "activities": activities[:60],
+                "services": services[:40],
+                "receivers": receivers[:40],
+                "providers": providers[:40],
+                "deep_links": deep_links[:20],
+                "debuggable": (summary or {}).get("debuggable", ""),
                 "has_dex": has_dex, "native_libs": has_so,
-                "zip_entries": len(entries)})
+                "zip_entries": len(entries),
+                "manifest_decoded": summary is not None})
     _record(session_id, "tech",
             f"Android app: {package or 'unknown package'}",
             f"{len(entries)} zip entries; dex={has_dex}; "
-            f"{len(perms)} permissions; ~{activities} activities; "
-            f"{len(has_so)} native libs.",
+            f"{len(perms)} permissions; {len(activities)} activities; "
+            f"{len(services)} services; {len(receivers)} receivers; "
+            f"{len(deep_links)} deep-link filters; "
+            f"{len(has_so)} native libs."
+            + ("" if summary is not None else
+               " Manifest is not binary-XML-decodable; treated as opaque."),
             "SOURCE_VERIFIED" if package else "INFERRED", 0.9 if package else 0.6,
-            "AndroidManifest.xml inside the APK", [path])
+            "AndroidManifest.xml decoded from the APK's binary XML"
+            if summary is not None else
+            "APK zip inventory only; manifest not decoded",
+            [path])
     for p in perms[:30]:
         _record(session_id, "note", f"Permission: {p}",
                 "Declared in AndroidManifest.xml.", "SOURCE_VERIFIED", 0.95,
                 "manifest parse", [path])
+    for dl in deep_links[:10]:
+        schemes = ", ".join(
+            f"{d.get('android:scheme', '')}://{d.get('android:host', '')}"
+            for d in dl.get("data", []))[:160]
+        _record(session_id, "endpoint", f"Deep link: {schemes or 'view intent'}",
+                f"Intent-filter with VIEW action: {schemes}.",
+                "SOURCE_VERIFIED", 0.9, "manifest intent-filter decode",
+                [path], endpoint=schemes)
 
 
 def rea_cli_path() -> str | None:
@@ -175,31 +219,94 @@ def rea_cli_path() -> str | None:
     return None
 
 
-def rea_analyze(path: str, timeout: int = 600) -> dict:
-    """Run `rea analyze --format json` on an artifact.
+def rea_analyze(path: str, timeout: int = 600,
+                flavor: str = "generic") -> dict:
+    """Run REA on an artifact and return the parsed JSON result.
 
-    Returns {"ok": ..., "findings": [...]} or {"ok": False, "reason": ...}.
-    Provider absence (no Ghidra/Hopper/IDA) is reported honestly, not faked.
+    flavor="electron" uses REA's Electron-aware `analyze-javascript-application`
+    (accepts an asar or an extracted app dir) instead of the generic
+    `rea analyze`. Returns {"ok": ...} or {"ok": False, "reason": ...};
+    provider absence is reported honestly, not faked.
     """
     cli = rea_cli_path()
     if not cli:
         return {"ok": False, "reason": "rea-not-installed",
+                "flavor": flavor,
                 "hint": "npm i -g rea-agents, then configure a provider "
                         "(Ghidra/Hopper/IDA) for deep decompilation"}
+    cmd = ([cli, "analyze-javascript-application", path, "--format", "json"]
+           if flavor == "electron"
+           else [cli, "analyze", path, "--format", "json"])
     try:
-        p = subprocess.run([cli, "analyze", path, "--format", "json"],
-                           capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=timeout)
         data = json.loads(p.stdout) if p.stdout.strip() else {}
     except Exception as e:
         return {"ok": False, "reason": "rea-exec-failed",
-                "hint": str(e)[:200]}
+                "flavor": flavor, "hint": str(e)[:200]}
     if isinstance(data, dict) and data.get("code") in (
             "provider_unavailable", "unavailable"):
         return {"ok": False, "reason": "rea-provider-unavailable",
+                "flavor": flavor,
                 "hint": "REA is installed but no analysis provider "
                         "(Ghidra/Hopper/IDA) is configured; "
                         "set GHIDRA_INSTALL_DIR or install Hopper"}
-    return {"ok": True, "raw": data}
+    return {"ok": True, "raw": data, "flavor": flavor}
+
+
+def _fuse_rea(session_id: str, path: str, rea: dict, out: dict) -> None:
+    """Record a REA bridge result in the ledger + output dict."""
+    out["rea"] = {"attempted": True, "ok": rea.get("ok"),
+                  "reason": rea.get("reason"),
+                  "flavor": rea.get("flavor", "generic")}
+    if rea.get("ok"):
+        _record(session_id, "note", "REA deep analysis completed",
+                f"REA ({rea.get('flavor', 'generic')}) succeeded on "
+                f"{os.path.basename(path)}; raw output attached to session "
+                f"artifacts.",
+                "SOURCE_VERIFIED", 0.9, "REA CLI --format json", [path])
+        out["rea_raw_keys"] = list(rea.get("raw", {}).keys())[:20]
+    else:
+        _record(session_id, "note", "Deep decompilation unavailable",
+                f"REA bridge: {rea.get('reason')}. {rea.get('hint', '')}",
+                "BLOCKED", 1.0, "REA CLI/provider check",
+                [path],
+                limitations="Install rea-agents and configure Ghidra/Hopper/IDA "
+                            "for function-level decompilation.")
+
+
+def _analyze_asar(session_id: str, path: str, out: dict) -> None:
+    """Electron asar pipeline: extract, inventory, REA electron-flavor."""
+    from omnirecon import electron_intel as EI
+    dest = os.path.join(_session_dir(session_id), "artifacts", "asar")
+    try:
+        res = EI.extract_asar(path, dest)
+    except Exception as e:
+        out.update({"format": "asar", "extraction": "failed",
+                    "error": str(e)[:200]})
+        _record(session_id, "note", "asar extraction failed",
+                f"Could not parse {os.path.basename(path)} as an Electron "
+                f"asar archive: {e!s}"[:500],
+                "BLOCKED", 1.0, "asar header/StringTable parse",
+                [path],
+                limitations="Archive may be corrupt, encrypted, or use an "
+                            "unsupported asar variant.")
+        return
+    out.update({"format": "asar", "extraction": "ok",
+                "extracted_to": os.path.relpath(dest, _session_dir(session_id)),
+                **{k: v for k, v in res.items() if k != "dest_dir"}})
+    _record(session_id, "tech",
+            f"Electron asar extracted: {res['files_extracted']} files",
+            f"{res['files_extracted']} files ({res['bytes_extracted']} bytes) "
+            f"extracted to {out['extracted_to']}; "
+            f"{res['skipped_unpacked']} unpacked-external, "
+            f"{res['skipped_bad']} skipped.",
+            "SOURCE_VERIFIED", 0.95, "pure-Python asar StringTable parse",
+            [path])
+    intel = EI.analyze_electron_dir(dest, session_id, origin=path)
+    out["electron"] = {k: v for k, v in intel.items() if k != "dir"}
+    # REA electron-aware deep dive on the extracted tree
+    _fuse_rea(session_id, dest, rea_analyze(dest, flavor="electron"), out)
 
 
 def analyze_artifact(session_id: str, path: str) -> dict:
@@ -216,6 +323,8 @@ def analyze_artifact(session_id: str, path: str) -> dict:
         _analyze_elf(session_id, path, out)
     elif kind == "apk":
         _analyze_apk(session_id, path, out)
+    elif kind == "asar":
+        _analyze_asar(session_id, path, out)
     elif kind == "jsbundle":
         eps = RP.extract_endpoints_from_text(open(path, encoding="utf-8",
                                                   errors="replace").read()[:2_000_000],
@@ -250,21 +359,8 @@ def analyze_artifact(session_id: str, path: str) -> dict:
                 "sensitive).", "SOURCE_VERIFIED", 0.85,
                 "strings(1) extraction", [path], endpoint=u)
 
-    # REA deep dive (optional, honest about provider absence)
-    rea = rea_analyze(path)
-    out["rea"] = {"attempted": True, "ok": rea.get("ok"),
-                  "reason": rea.get("reason")}
-    if rea.get("ok"):
-        _record(session_id, "note", "REA deep analysis completed",
-                f"REA analyze succeeded on {os.path.basename(path)}; "
-                f"raw output attached to session artifacts.",
-                "SOURCE_VERIFIED", 0.9, "REA CLI --format json", [path])
-        out["rea_raw_keys"] = list(rea.get("raw", {}).keys())[:20]
-    else:
-        _record(session_id, "note", "Deep decompilation unavailable",
-                f"REA bridge: {rea.get('reason')}. {rea.get('hint', '')}",
-                "BLOCKED", 1.0, "REA CLI/provider check",
-                [path],
-                limitations="Install rea-agents and configure Ghidra/Hopper/IDA "
-                            "for function-level decompilation.")
+    # REA deep dive (optional, honest about provider absence).
+    # asar already ran its electron-flavor REA inside _analyze_asar.
+    if kind != "asar":
+        _fuse_rea(session_id, path, rea_analyze(path), out)
     return SEC.redact(out)

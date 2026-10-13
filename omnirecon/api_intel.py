@@ -85,14 +85,42 @@ def analyze_api_spec(url: str) -> dict:
             "schemas": sorted(schemas)[:200]}
 
 
+def _shape_to_jsonschema(shape: dict) -> dict:
+    """Convert an infer_shape() dict to JSON Schema (types only)."""
+    if not isinstance(shape, dict):
+        return {}
+    t = shape.get("type")
+    if t == "object":
+        return {"type": "object",
+                "properties": {k: _shape_to_jsonschema(v)
+                               for k, v in
+                               shape.get("properties", {}).items()},
+                "x-omni-observed-keys": shape.get("keys", 0)}
+    if t == "array":
+        items = shape.get("items") or []
+        return {"type": "array",
+                "items": _shape_to_jsonschema(items[0]) if items else {}}
+    if t in ("string", "integer", "number", "boolean", "null"):
+        return {"type": t}
+    return {}
+
+
 def ledger_to_openapi(findings: list[dict], title: str = "Reconstructed API",
                        version: str = "1.0.0") -> dict:
     """Build an OpenAPI 3.1 document from evidence-ledger endpoint findings.
 
     Only findings with type 'endpoint' become paths; each carries its
     evidence classification as an x- extension so consumers know the
-    provenance of every path.
+    provenance of every path. Findings with type 'schema' contribute
+    requestBody / response schemas (values-free shapes).
     """
+    # index schema findings by (endpoint, shape_kind)
+    schemas: dict[tuple[str, str], dict] = {}
+    for f in findings:
+        if f.get("type") == "schema" and f.get("endpoint") \
+                and isinstance(f.get("shape"), dict):
+            schemas[(str(f["endpoint"]), str(f.get("shape_kind", "")))] = \
+                _shape_to_jsonschema(f["shape"])
     paths: dict[str, dict] = {}
     for f in findings:
         if f.get("type") != "endpoint":
@@ -116,11 +144,26 @@ def ledger_to_openapi(findings: list[dict], title: str = "Reconstructed API",
                 "sources": (f.get("sources") or [])[:3],
             },
         }
+        req_shape = schemas.get((raw.strip(), "request")) \
+            or schemas.get((f.get("endpoint", ""), "request"))
+        resp_shape = schemas.get((raw.strip(), "response")) \
+            or schemas.get((f.get("endpoint", ""), "response"))
+        if req_shape:
+            op["requestBody"] = {
+                "content": {"application/json": {"schema": req_shape}},
+                "x-omni-observed": True,
+            }
+        if resp_shape:
+            op["responses"] = {
+                "200": {"description": "Observed response shape",
+                        "content": {"application/json":
+                                    {"schema": resp_shape}}}}
         paths.setdefault(pth, {})[method] = op
     return {"openapi": "3.1.0",
             "info": {"title": title, "version": version,
                      "description": "Reconstructed from observed evidence by "
-                                    "OmniRecon. Classifications mark provenance."},
+                                    "OmniRecon. Classifications mark provenance; "
+                                    "schemas are values-free shapes."},
             "paths": dict(sorted(paths.items()))}
 
 

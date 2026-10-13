@@ -44,14 +44,15 @@ def _utcnow() -> str:
 
 
 _ARTIFACT_EXTS = (".apk", ".ipa", ".dex", ".elf", ".so", ".dll", ".exe",
-                  ".msi", ".dmg", ".bin", ".o", ".a", ".ko", ".fw", ".img")
+                  ".msi", ".dmg", ".bin", ".o", ".a", ".ko", ".fw", ".img",
+                  ".asar")
 
 
 def _detect_target_kind(target: str) -> tuple[str, str]:
     """Return (kind, normalized_target).
 
     kinds: 'url' (web platform), 'api_spec' (OpenAPI/Swagger document),
-    'repo' (local dir or git URL), 'artifact' (APK/IPA/native binary file).
+    'repo' (local dir or git URL), 'artifact' (APK/IPA/native binary/asar file).
     """
     t = (target or "").strip()
     if not t:
