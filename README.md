@@ -64,22 +64,31 @@ works and give me a rebuild plan."*
 
 ## How it works
 
-```
-Target URL / repo path
-        │  recon_start → rapid recon in seconds (tech, routes, DNS, forms)
-        ▼
-┌──────────────┐  ┌───────────────┐  ┌──────────────────┐
-│ Route crawl  │  │ Page inspect  │  │ Network capture  │  ← owned Playwright
-│ + JS API     │  │ DOM, controls │  │ XHR/fetch/WS +   │    browser (clicks,
-│   extraction │  │ screenshots   │  │ initiator stacks │    fills, screenshots)
-└──────┬───────┘  └───────┬───────┘  └────────┬─────────┘
-       └─────────────┬───┴───────────────────┘
-                     ▼
- Evidence ledger — OBSERVED / SOURCE_VERIFIED / INFERRED / UNVERIFIED / BLOCKED
-                     ▼
- recon_generate_spec → 15-section rebuild blueprint → recon_export_report
-                     ▼
- recon_compare_build → verify your rebuild against the reference
+```mermaid
+flowchart TD
+    A["🎯 Target<br/>URL · API doc · repo · APK / binary"] --> B["⚡ recon_start<br/>rapid recon in seconds"]
+    B --> C["🕷️ Route crawl<br/>+ JS bundle API extraction"]
+    B --> D["🔍 Page inspect<br/>DOM · controls · screenshots"]
+    B --> E["📡 Network capture<br/>XHR / fetch / WebSocket"]
+    B --> F2["📱 Artifact & source intel<br/>APK · Electron · codebase"]
+    C --> G["📒 Evidence ledger<br/>OBSERVED · SOURCE_VERIFIED · INFERRED<br/>UNVERIFIED · BLOCKED"]
+    D --> G
+    E --> G
+    F2 --> G
+    G --> H["📐 recon_generate_spec<br/>15-section rebuild blueprint"]
+    H --> I["📄 recon_export_report<br/>markdown · JSON · OpenAPI"]
+    H --> J["🔁 recon_compare_build<br/>verify rebuild vs reference"]
+
+    style A fill:#1e3a5f,stroke:#6ea8fe,stroke-width:2px,color:#fff
+    style B fill:#3b2d6e,stroke:#a78bfa,stroke-width:2px,color:#fff
+    style C fill:#14324a,stroke:#38bdf8,color:#e8f4ff
+    style D fill:#14324a,stroke:#38bdf8,color:#e8f4ff
+    style E fill:#14324a,stroke:#38bdf8,color:#e8f4ff
+    style F2 fill:#14324a,stroke:#38bdf8,color:#e8f4ff
+    style G fill:#3d2b00,stroke:#fbbf24,stroke-width:2px,color:#fff8e1
+    style H fill:#0f3d2e,stroke:#34d399,stroke-width:2px,color:#ecfdf5
+    style I fill:#0f3d2e,stroke:#34d399,color:#ecfdf5
+    style J fill:#0f3d2e,stroke:#34d399,color:#ecfdf5
 ```
 
 Sessions persist on disk, so an agent can pause, resume (`recon_status`), run
