@@ -1220,7 +1220,7 @@ def recon_generate_spec(session_id: Annotated[str, Field(description="Session ID
     except Exception:
         pass
     # Machine-readable build manifest: ordered task list for the rebuild loop.
-    manifest = []
+    manifest = {"build_tasks": [], "research_tasks": []}
     manifest_path = ""
     try:
         manifest = SPEC.generate_manifest(spec, graph)
@@ -1228,11 +1228,12 @@ def recon_generate_spec(session_id: Annotated[str, Field(description="Session ID
         with open(manifest_path, "w") as fh:
             json.dump(manifest, fh, indent=2, ensure_ascii=False, default=str)
     except Exception:
-        manifest = []
+        manifest = {"build_tasks": [], "research_tasks": []}
         manifest_path = ""
     _audit(session_id, "generate_spec",
            f"findings={len(findings)} sections={len(spec.get('sections', {}))} "
-           f"tasks={len(manifest)}")
+           f"build_tasks={len(manifest.get('build_tasks', []))} "
+           f"research_tasks={len(manifest.get('research_tasks', []))}")
     spec["manifest"] = manifest
     spec["manifest_path"] = manifest_path
     return spec

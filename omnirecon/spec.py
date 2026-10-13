@@ -219,14 +219,34 @@ def _user_journeys(findings: list[dict]) -> dict:
 
 def _api_inventory(findings: list[dict]) -> dict:
     eps = _by_type(findings, "endpoint")
-    bullets = []
+    # Deduplicate by normalized endpoint: merge corroborating findings.
+    seen: dict[str, dict] = {}
     for f in eps:
         ep = f.get("endpoint") or f.get("title", "")
-        bullets.append(_b(
-            f"{ep}" + (f" — {f.get('detail')}" if f.get("detail") else ""),
-            [f.get("id")] if f.get("id") else [],
-            f.get("classification", "INFERRED"), f.get("confidence", 0.5),
-            f.get("confidence_why", "")))
+        norm = ep.lower().split("?")[0].rstrip("/").strip()
+        if not norm:
+            continue
+        if norm in seen:
+            # Merge: keep the higher-confidence finding, union the IDs.
+            cur = seen[norm]
+            cur_ids = set(cur.get("finding_ids", []))
+            if f.get("id"):
+                cur_ids.add(f["id"])
+            cur["finding_ids"] = sorted(cur_ids)
+            if f.get("confidence", 0) > cur.get("confidence", 0):
+                cur["text"] = f"{ep}" + (f" — {f.get('detail')}" if f.get("detail") else "")
+                cur["classification"] = f.get("classification", cur["classification"])
+                cur["confidence"] = f.get("confidence", cur["confidence"])
+        else:
+            seen[norm] = {
+                "text": f"{ep}" + (f" — {f.get('detail')}" if f.get("detail") else ""),
+                "finding_ids": [f["id"]] if f.get("id") else [],
+                "classification": f.get("classification", "INFERRED"),
+                "confidence": f.get("confidence", 0.5),
+                "why": f.get("confidence_why", ""),
+            }
+    bullets = [_b(v["text"], v["finding_ids"], v["classification"],
+                  v["confidence"], v["why"]) for v in seen.values()]
     if not bullets:
         bullets.append(_b(
             "No API endpoints recorded. Client-server boundaries are unknown; "
@@ -427,35 +447,40 @@ def _edge_cases(findings: list[dict]) -> dict:
 
 
 def _test_plan(findings: list[dict]) -> dict:
+    routes = [f for f in _by_type(findings, "route") if f.get("route")]
+    endpoints = [f for f in _by_type(findings, "endpoint") if f.get("endpoint")]
+    workflows = _by_type(findings, "workflow")
     bullets = []
-    for f in _by_type(findings, "route"):
-        if f.get("route"):
-            bullets.append(_b(
-                f"Route test: GET {f.get('route')} returns 2xx and renders the "
-                "recorded title/content.",
-                [f.get("id")] if f.get("id") else [], "INFERRED", 0.6,
-                "plan item generated from an observed route; not yet executed"))
-    for f in _by_type(findings, "endpoint"):
-        if f.get("endpoint"):
-            bullets.append(_b(
-                f"API test: exercise {f.get('endpoint')} with the observed "
-                "method and assert the recorded status/content-type.",
-                [f.get("id")] if f.get("id") else [], "INFERRED", 0.55,
-                "plan item generated from an observed endpoint; not yet executed"))
-    for f in _by_type(findings, "workflow"):
+    # Parameterized templates, not one bullet per item (saves context).
+    if routes:
         bullets.append(_b(
-            f"Workflow test: replay '{f.get('title', '')}' and assert each "
-            "recorded state transition.",
-            [f.get("id")] if f.get("id") else [], "INFERRED", 0.55,
-            "plan item generated from an observed workflow; not yet executed"))
-    if _by_type(findings, "route"):
+            f"Route tests ({len(routes)} routes): for EACH route, GET it and "
+            f"assert 2xx + recorded title. Routes: "
+            f"{', '.join(f.get('route', '')[:60] for f in routes[:10])}"
+            f"{'...' if len(routes) > 10 else ''}.",
+            _ids(routes), "INFERRED", 0.6,
+            "parameterized plan; not yet executed"))
+    if endpoints:
+        bullets.append(_b(
+            f"API tests ({len(endpoints)} endpoints): for EACH endpoint, "
+            f"exercise with the observed method and assert recorded "
+            f"status/content-type.",
+            _ids(endpoints), "INFERRED", 0.55,
+            "parameterized plan; not yet executed"))
+    if workflows:
+        bullets.append(_b(
+            f"Workflow tests ({len(workflows)} flows): replay each recorded "
+            f"journey and assert every state transition.",
+            _ids(workflows), "INFERRED", 0.55,
+            "parameterized plan; not yet executed"))
+    if routes:
         bullets.append(_b(
             "Accessibility check: keyboard-navigate every recorded route; assert "
             "visible focus and no console errors on load.",
-            _ids(_by_type(findings, "route")), "INFERRED", 0.5,
+            _ids(routes), "INFERRED", 0.5,
             "standard gate; not yet executed"))
-    if len(bullets) == 1:
-        bullets.insert(0, _b(
+    if not bullets:
+        bullets.append(_b(
             "Test plan is skeletal — almost no routes, endpoints, or workflows "
             "are evidenced. Expand analysis before treating this plan as "
             "coverage.",
@@ -676,48 +701,93 @@ def generate_manifest(spec: dict, graph=None) -> list[dict]:
                  "the build"])
         tasks.append(t)
 
-    # ---- P0/P1/P2: evidence-strength tasks, deduped ----
-    seen: set = set()
+    # ---- Research tasks: evidence gaps with concrete resolution steps ----
+    # Separated from build tasks: the agent researches FIRST, then builds.
+    research_tasks: list[dict] = []
+    seen_research: set = set()
 
-    def _ev_task(b, section, band, priority, verb):
-        fids = tuple(sorted(set(b.get("finding_ids", []) or [])))
-        key = (band, fids if fids else (b.get("text", "") or "")[:80])
-        if key in seen:
+    def _research_task(title: str, section: str, fids, how_to_resolve: str):
+        key = title[:100]
+        if key in seen_research:
             return
-        seen.add(key)
-        text = b.get("text", "") or ""
-        tasks.append(_mk(f"{verb}: {text[:100]}", section,
-                         list(fids), priority))
+        seen_research.add(key)
+        research_tasks.append(_mk(title, section, list(fids), "research",
+                                  acceptance=[how_to_resolve]))
 
     for name in SECTION_NAMES:
         for b in _manifest_bullets(spec, name):
             cls = b.get("classification", "")
+            text = b.get("text", "") or ""
+            fids = b.get("finding_ids", []) or []
             if cls == "BLOCKED":
-                _ev_task(b, name, "BLOCKED", "P0", "Resolve BLOCKED evidence")
+                _research_task(
+                    f"Unblock: {text[:100]}", name, fids,
+                    f"Run the relevant tool (see SKILL.md routing table) to "
+                    f"observe this; if truly inaccessible, document why in the ledger.")
             elif cls == "UNVERIFIED":
-                _ev_task(b, name, "UNVERIFIED", "P1", "Verify")
+                # Skip advisory placeholders that just say "tool X has not run"
+                if "has not run" in text or "has not produced" in text:
+                    tool_hint = ""
+                    if "recon_" in text:
+                        import re as _re
+                        m = _re.search(r"(recon_\w+)", text)
+                        if m:
+                            tool_hint = f" Run {m.group(1)}."
+                    _research_task(
+                        f"Collect missing evidence: {text[:80]}", name, fids,
+                        f"This is missing because a tool wasn't run.{tool_hint} "
+                        f"Then re-run recon_generate_spec.")
+                else:
+                    _research_task(
+                        f"Verify: {text[:100]}", name, fids,
+                        "Re-observe with the relevant tool; mark SOURCE_VERIFIED "
+                        "if corroborated, or document the contradiction.")
             elif cls == "INFERRED" and name in _LOAD_BEARING:
-                _ev_task(b, name, "INFERRED", "P2", "Strengthen inference")
+                _research_task(
+                    f"Confirm inference: {text[:100]}", name, fids,
+                    "This affects architecture. Verify with a targeted probe "
+                    "or inspect; upgrade to OBSERVED if confirmed.")
 
-    # order: P0 -> P1 -> P2 -> P3, stable within each band
-    order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-    indexed = list(enumerate(tasks))
-    indexed.sort(key=lambda pair: (order.get(pair[1]["priority"], 9), pair[0]))
-    tasks = [t for _, t in indexed]
+    # ---- Build tasks: deduplicated by normalized target ----
+    # (route_tasks, endpoint tasks, etc. are already in `tasks` from above)
+    seen_build: set = set()
+    deduped_build = []
+    for t in tasks:
+        # Normalize: lowercase URL path without query/fragment/trailing slash
+        title = t.get("title", "")
+        norm = title.lower().split("?")[0].split("#")[0].rstrip("/").strip()
+        if norm in seen_build:
+            continue
+        seen_build.add(norm)
+        deduped_build.append(t)
 
-    if not tasks:
-        tasks.append(_mk(
-            "Run the analysis pipeline (recon_start, recon_discover_routes, "
-            "recon_inspect_page): the ledger is empty and there is nothing "
-            "to build from.", "overview", [], "P0"))
-    # re-number deterministically after sorting
-    for i, t in enumerate(tasks, 1):
+    # Order build tasks: routes -> endpoints -> components -> workflows
+    section_order = {"routes": 0, "api_inventory": 1, "components": 2,
+                     "user_journeys": 3}
+    deduped_build.sort(key=lambda t: (section_order.get(t.get("section"), 9),
+                                      t["id"]))
+
+    # Re-number deterministically
+    for i, t in enumerate(deduped_build, 1):
         old = t["id"]
-        new = f"T-{i:03d}"
+        new = f"B-{i:03d}"
         t["id"] = new
-        for other in tasks:
+        for other in deduped_build:
             other["depends_on"] = [new if d == old else d
                                    for d in other["depends_on"]]
+    for i, t in enumerate(research_tasks, 1):
+        t["id"] = f"R-{i:03d}"
+
+    if not deduped_build and not research_tasks:
+        deduped_build.append(_mk(
+            "Run the analysis pipeline (recon_start, recon_discover_routes, "
+            "recon_inspect_page): the ledger is empty and there is nothing "
+            "to build from.", "overview", [], "P3",
+            acceptance=["recon_generate_spec returns non-empty sections"]))
+
+    return {"build_tasks": deduped_build, "research_tasks": research_tasks}
+
+
     return tasks
 
 
