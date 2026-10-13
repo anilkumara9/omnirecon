@@ -24,7 +24,7 @@ other MCP-compatible agent or IDE.
 
 - [How it works](#how-it-works)
 - [Why it's different](#why-its-different)
-- [The 18 tools](#the-18-tools)
+- [The 19 tools](#the-19-tools)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
 - [Agent workflow example](#agent-workflow-example)
@@ -74,7 +74,7 @@ with a live REA bridge fusing deep decompilation results into the same evidence
 ledger when REA is installed with a configured provider. Full analysis in
 [`REA_INSPECTION.md`](REA_INSPECTION.md).
 
-## The 18 tools
+## The 19 tools
 
 | Tool | What it does |
 |---|---|
@@ -89,13 +89,32 @@ ledger when REA is installed with a configured provider. Full analysis in
 | `recon_verify_consistency` | **Cross-engine accuracy check**: static crawl vs rendered pages vs JS bundles vs network capture. Agreements corroborated, contradictions downgraded — never silently dropped. |
 | `recon_recover_sourcemaps` | Fetch published `*.js.map` files and recover the original source tree. Honest when the site ships none. |
 | `recon_probe_endpoints` | Live-probe every discovered `/api/*` endpoint (HEAD→GET); records live/dead verdicts with status codes. |
-| `recon_extract_assets` | Image/font/icon inventory + design tokens. |
+| `recon_extract_assets` | Image/font/icon inventory + static design tokens (CSS parsing). |
+| `recon_analyze_ui` | **Designer-grade UI reverse engineering**: computed design tokens (colors, type scale, spacing, radii, shadows) from *rendered* styles, component inventory grouped by visual signature, CSS framework detection, layout sectioning. |
 | `recon_get_graph` | Route/component/endpoint dependency graph. |
 | `recon_get_evidence` | Query the evidence ledger (filter by classification/type). |
 | `recon_generate_spec` | 15-section reconstruction blueprint from the ledger. |
 | `recon_compare_build` | Diff a rebuild URL against the reference (route coverage, endpoint overlap). |
 | `recon_export_report` | Markdown/JSON report — or an **OpenAPI 3.1 document** reconstructed from the ledger, every path tagged with its evidence classification. |
 | `recon_cancel` | Cancel a session and its background jobs. |
+
+## UI reverse engineering (designer-grade)
+
+`recon_analyze_ui` doesn't read stylesheets — it reads the **rendered page**, the
+way a designer would inspect a finished product:
+
+- **Computed design tokens** — the real color palette, type scale (sizes/weights),
+  font families, spacing scale, border radii, and shadows, all sampled from
+  `getComputedStyle` on visible elements.
+- **Component inventory** — buttons, links, inputs grouped by *visual signature*,
+  so "primary button ×14" and "ghost button ×3" come out as design-system variants
+  with exact bg/fg/radius/padding values, ready to rebuild as components.
+- **Framework detection** — Tailwind, MUI, Chakra, Bootstrap, Ant Design.
+- **Layout sectioning** — header/nav/main/section/footer landmarks with measured
+  dimensions and headings.
+
+Combine with `recon_extract_assets` (static CSS tokens + font files) and
+`recon_inspect_page` (DOM + screenshots) for the full designer handoff.
 
 ## Why top engineers pick OmniRecon
 
@@ -185,7 +204,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 18 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 19 tools.
 
 ### Cursor
 
@@ -239,7 +258,7 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 18 tools are mirrored as CLI commands running the same code — useful for
+All 19 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash

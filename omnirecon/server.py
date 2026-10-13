@@ -876,6 +876,49 @@ def recon_extract_assets(session_id: str, url: str) -> dict:
 
 
 @mcp.tool()
+def recon_analyze_ui(session_id: str, url: str) -> dict:
+    """Designer-grade UI reverse engineering: computed design tokens (colors,
+    typography, spacing, radii, shadows), component inventory grouped by visual
+    signature, CSS framework detection, and layout sectioning — all from
+    *rendered* computed styles, not stylesheets. Requires the browser engine."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not url or not url.strip():
+        return _err("url is required", "invalid_input", "")
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        return _err("UI analysis requires the browser engine", "unavailable",
+                    "omnirecon.browser_engine is not available in this deployment")
+    umod, uerr = _lane("ui_intel")
+    if uerr or not hasattr(umod, "analyze_ui"):
+        return _err("UI analysis is unavailable", "unavailable",
+                    "omnirecon.ui_intel is not available in this deployment")
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, url.strip(),
+                                            session_id, mgr)
+            result = browser._run(
+                umod.analyze_ui(browser, page.get("page_id"),
+                                session_id, url.strip()))
+        finally:
+            browser.close()
+    except Exception as e:  # noqa: BLE001
+        return _err("UI analysis failed", "internal", str(e)[:300])
+    try:
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "analyze_ui",
+           f"{url} components={len(result.get('components', []))}")
+    return result
+
+
+@mcp.tool()
 def recon_analyze_artifact(session_id: str, path: str) -> dict:
     """Analyze a shipped artifact: APK/IPA, native binary (ELF/PE/Mach-O),
     or JS bundle. Lightweight structural intel (format, symbols, manifest,

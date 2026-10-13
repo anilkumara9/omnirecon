@@ -92,13 +92,18 @@ Sessions are resumable. Every tool takes `session_id` from `recon_start`.
 7. **Consistency** — `recon_verify_consistency(session_id)` before the
    blueprint. Cross-checks every engine against the others; contradictions
    are downgraded with reasons, never hidden.
-8. **Blueprint** — `recon_generate_spec(session_id)`. The 15-section
+8. **UI** — `recon_analyze_ui(session_id, url)` on the flagship pages: computed
+   design tokens (real colors, type scale, spacing, radii, shadows), the
+   component inventory grouped by visual signature (design-system variants,
+   not just DOM tags), framework detection, layout sections. This is the
+   designer handoff — what the rebuild's components must look like.
+9. **Blueprint** — `recon_generate_spec(session_id)`. The 15-section
    reconstruction spec, every claim linked to finding IDs, plus a
    machine-readable `tasks.json` build manifest (ordered P0→P3).
-9. **Export** — `recon_export_report(session_id, format="markdown")`, or
+10. **Export** — `recon_export_report(session_id, format="markdown")`, or
    `format="openapi"` for a rebuildable OpenAPI 3.1 document with
    per-path evidence provenance and observed request/response schemas.
-10. **Rebuild loop** — build from the manifest in order, then
+11. **Rebuild loop** — build from the manifest in order, then
     `recon_compare_build(session_id, build_url)`: per-route/per-endpoint
     pass-fail deviations with evidence citations, plus a `trend` block when
     a previous run exists (fixed since last, new missing). Fix deviations,

@@ -109,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("url")
     p.set_defaults(func=lambda a: SRV.recon_extract_assets(a.session, a.url))
 
+    p = sub.add_parser("recon-analyze-ui", help="Designer-grade UI analysis: computed tokens, components, frameworks.")
+    _add_session_arg(p)
+    p.add_argument("url")
+    p.set_defaults(func=lambda a: SRV.recon_analyze_ui(a.session, a.url))
+
     p = sub.add_parser("recon-get-graph", help="Route/component/API dependency graph.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_get_graph(a.session))
