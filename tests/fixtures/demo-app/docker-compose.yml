@@ -1,0 +1,6 @@
+services:
+  web:
+    build: .
+    environment:
+      - DATABASE_URL=postgres://db/app
+      - REDIS_URL=redis://redis:6379

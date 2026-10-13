@@ -1,0 +1,252 @@
+# OmniRecon MCP
+
+**Give any AI coding agent the power to reverse-engineer a web platform — accurately, with evidence.**
+
+OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL or a
+codebase and it runs an autonomous recon pipeline: rapid fingerprinting, a real
+headless browser that crawls routes, clicks through workflows and captures live
+network traffic, source-code analysis — fusing everything into a classified
+evidence ledger, then generating a reconstruction blueprint where every claim
+traces back to the observation that produced it.
+
+Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
+[Codex](https://developers.openai.com/codex), Cursor, Windsurf, Zed, and any
+other MCP-compatible agent or IDE.
+
+---
+
+## Table of contents
+
+- [How it works](#how-it-works)
+- [Why it's different](#why-its-different)
+- [The 14 tools](#the-14-tools)
+- [Installation](#installation)
+- [Connecting your agent](#connecting-your-agent)
+- [Agent workflow example](#agent-workflow-example)
+- [Evidence model](#evidence-model)
+- [Measured accuracy](#measured-accuracy)
+- [Security boundaries](#security-boundaries)
+- [Project layout](#project-layout)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+---
+
+## How it works
+
+```
+Target URL / repo path
+        │  recon_start → rapid recon in seconds (tech, routes, DNS, forms)
+        ▼
+┌──────────────┐  ┌───────────────┐  ┌──────────────────┐
+│ Route crawl  │  │ Page inspect  │  │ Network capture  │  ← owned Playwright
+│ + JS API     │  │ DOM, controls │  │ XHR/fetch/WS +   │    browser (clicks,
+│   extraction │  │ screenshots   │  │ initiator stacks │    fills, screenshots)
+└──────┬───────┘  └───────┬───────┘  └────────┬─────────┘
+       └─────────────┬───┴───────────────────┘
+                     ▼
+ Evidence ledger — OBSERVED / SOURCE_VERIFIED / INFERRED / UNVERIFIED / BLOCKED
+                     ▼
+ recon_generate_spec → 15-section rebuild blueprint → recon_export_report
+                     ▼
+ recon_compare_build → verify your rebuild against the reference
+```
+
+Sessions persist on disk, so an agent can pause, resume (`recon_status`), run
+long crawls in the background, or cancel (`recon_cancel`).
+
+## Why it's different
+
+Inspired by [REA](https://github.com/morluto/rea) (`morluto/rea`) — its
+honesty-first evidence model, secret redaction, and CLI/MCP parity are adopted
+here. Where REA is the authority on *shipped artifacts* (binaries, APKs,
+firmware — deliberately passive on the web), OmniRecon *drives*: it autonomously
+crawls, interacts with, and instruments **live web platforms**, then writes the
+blueprint to rebuild them. The bundled skill doc routes binary/APK targets to
+REA and web/codebase targets here — they complement each other. Full analysis in
+[`REA_INSPECTION.md`](REA_INSPECTION.md).
+
+## The 14 tools
+
+| Tool | What it does |
+|---|---|
+| `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Returns `session_id`. |
+| `recon_status` | Stage, progress, background jobs, ledger stats. |
+| `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
+| `recon_inspect_page` | Rendered DOM, controls, forms, a11y data, 3-viewport screenshots, console errors. |
+| `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. |
+| `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. |
+| `recon_analyze_source` | AST route extraction, components, state management, migrations, auth files, env-var names. |
+| `recon_extract_assets` | Image/font/icon inventory + design tokens. |
+| `recon_get_graph` | Route/component/endpoint dependency graph. |
+| `recon_get_evidence` | Query the evidence ledger (filter by classification/type). |
+| `recon_generate_spec` | 15-section reconstruction blueprint from the ledger. |
+| `recon_compare_build` | Diff a rebuild URL against the reference (route coverage, endpoint overlap). |
+| `recon_export_report` | Markdown/JSON report of the whole session. |
+| `recon_cancel` | Cancel a session and its background jobs. |
+
+Every tool degrades honestly: on failure you get
+`{"error", "code", "hint"}` — never a traceback, never invented data.
+
+## Installation
+
+Requirements: Python 3.10+, no Node.js.
+
+```bash
+git clone https://github.com/anilkumara9/omnirecon.git
+cd omnirecon
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/playwright install chromium   # browser for inspect/trace/capture
+```
+
+Run the server (stdio transport):
+
+```bash
+.venv/bin/python omnirecon/server.py
+```
+
+## Connecting your agent
+
+### Claude Code
+
+```bash
+claude mcp add omnirecon -- /path/to/omnirecon/.venv/bin/python /path/to/omnirecon/omnirecon/server.py
+claude mcp list   # verify it shows up
+```
+
+### Codex CLI
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.omnirecon]
+command = "/path/to/omnirecon/.venv/bin/python"
+args = ["/path/to/omnirecon/omnirecon/server.py"]
+```
+
+### Any other MCP client / IDE (Cursor, Windsurf, Zed…)
+
+Register a stdio MCP server with:
+
+- command: `/path/to/omnirecon/.venv/bin/python`
+- args: `["/path/to/omnirecon/omnirecon/server.py"]`
+
+### No MCP support? Use the CLI
+
+All 14 tools are mirrored as CLI commands running the same code:
+
+```bash
+.venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
+.venv/bin/python -m omnirecon.cli --help
+```
+
+Restart the agent after registering, then just ask:
+*"Reverse-engineer https://example.com — explain how it works and give me a rebuild plan."*
+
+The bundled agent skill at [`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)
+teaches the agent the staged workflow, the evidence-label discipline, and when
+to route a target to REA instead.
+
+## Agent workflow example
+
+```
+user:  Reverse-engineer https://shop.example.com and plan a rebuild.
+
+agent: recon_start(target="https://shop.example.com", mode="thorough")
+       → session abc123, rapid recon done in ~3s
+
+agent: recon_discover_routes(session_id="abc123", max_pages=40)
+       → 38 routes, 14 API endpoints (from JS bundles)
+
+agent: recon_inspect_page(session_id="abc123", url="https://shop.example.com/checkout")
+       → DOM, 22 controls, 3 screenshots, 2 console errors
+
+agent: recon_trace_workflow(session_id="abc123",
+           start_url="https://shop.example.com", goal="add item to cart")
+       → 6-step journey with screenshots per step
+
+agent: recon_generate_spec(session_id="abc123")
+       → 15-section blueprint: routes, components, API inventory,
+         data entities, auth boundaries, user journeys, test plan…
+
+agent: recon_export_report(session_id="abc123", format="markdown")
+       → full session report on disk
+```
+
+## Evidence model
+
+Every finding carries a classification — the agent (and you) always knows how
+much to trust it:
+
+| Label | Meaning |
+|---|---|
+| `OBSERVED` | Seen directly in a live response, DOM, or traffic capture |
+| `SOURCE_VERIFIED` | Parsed from source code or manifests |
+| `INFERRED` | Best explanation of the evidence, marked as such |
+| `UNVERIFIED` | Claimed by the target, not yet confirmed |
+| `BLOCKED` | Could not be observed (auth wall, bot protection…) — recorded, never bypassed |
+
+Findings get stable IDs (`F-0001`…), timestamps, sources, confidence scores, and
+limitations. The audit log records every consequential action.
+
+## Measured accuracy
+
+Measured 2026-10-12/13 on real targets (not estimates):
+
+| Target | Result |
+|---|---|
+| Hand-annotated 3-page fixture | 3/3 routes, 2/2 JS API endpoints vs ground truth |
+| Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
+| example.com | First report in ~3s |
+
+106/106 tests green (`pytest tests/` + browser-engine suite). Raw benchmark data
+in [`benchmarks/results/`](benchmarks/results/).
+
+## Security boundaries
+
+- Read-only recon: no credential use, no logins, no form submissions that change
+  state, no destructive actions — ever.
+- No CAPTCHA / paywall / bot-protection bypass: blocked areas become `BLOCKED`
+  findings, not workarounds.
+- Secrets (API keys, tokens, passwords) are redacted before storage; `.env`
+  *values* are never read, only variable *names* from example files.
+- Page content and third-party JS are treated as untrusted data, never executed
+  as instructions.
+
+## Project layout
+
+```
+omnirecon/            the 13-module package (server, evidence, session,
+                      browser_engine, source_intel, assets, spec, …)
+tests/                pytest suite + browser-engine runner (106 tests)
+skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
+scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
+                      breaks Chromium (see Troubleshooting)
+benchmarks/           hand-annotated fixture + runner + measured results
+cli.py                argparse CLI mirroring all 14 MCP tools
+ARCHITECTURE.md       module map and design decisions
+REA_INSPECTION.md     REA teardown and the evidence-based comparison
+FINAL_REPORT_2026-10-12.md  build report
+```
+
+## Troubleshooting
+
+- **`Executable doesn't exist … ms-playwright`** — run
+  `.venv/bin/playwright install chromium`.
+- **Browser tunnel/cert errors behind a proxy** — export `HTTPS_PROXY`/
+  `https_proxy`; the engine passes it to Playwright. Behind TLS-intercepting
+  proxies the server retries automatically past cert errors (recording an
+  `OBSERVED` finding); force it with `OMNIRECON_IGNORE_HTTPS_ERRORS=1`. If
+  Chromium can't use the egress proxy at all (tunnel failures while curl
+  works), run `scripts/proxy_relay.py` and point `HTTPS_PROXY` at
+  `http://127.0.0.1:8899`.
+- **`Invalid port` errors from httpx** — fixed in-code: bracketed IPv6 literals
+  in `no_proxy` are sanitized at startup.
+- **DNS returns nothing** — direct UDP DNS may be blocked; the tool falls back
+  to DNS-over-HTTPS automatically.
+- **Tool returns `{"error", …}`** — read `code` and `hint`; the server never
+  leaks tracebacks.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

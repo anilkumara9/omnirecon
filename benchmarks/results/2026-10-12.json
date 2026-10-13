@@ -1,0 +1,117 @@
+{
+  "benchmark": "omnirecon-stage2-recon",
+  "date": "2026-10-12",
+  "generated_utc": "2026-10-12T12:14:12.561455+00:00",
+  "targets": {
+    "fixture": {
+      "label": "fixture-static-site",
+      "url": "http://127.0.0.1:8137/",
+      "checked_utc": "2026-10-12T12:14:12.764277+00:00",
+      "time_to_first_report_s": 0.72,
+      "tech_detected": [
+        "Unknown / custom stack"
+      ],
+      "crawl_s": 1.01,
+      "extract_s": 0.76,
+      "total_recon_s": 2.5,
+      "routes_found": [
+        "/",
+        "/about.html",
+        "/products.html"
+      ],
+      "endpoints_found": [
+        "/api/products",
+        "/api/search",
+        "/search"
+      ],
+      "route_count": 3,
+      "endpoint_count": 3,
+      "evidence_by_classification": {
+        "OBSERVED": 6,
+        "INFERRED": 1
+      },
+      "ground_truth_score": {
+        "route_precision": 1.0,
+        "route_recall": 1.0,
+        "routes_expected": [
+          "/",
+          "/about.html",
+          "/products.html"
+        ],
+        "routes_found": [
+          "/",
+          "/about.html",
+          "/products.html"
+        ],
+        "routes_missed": [],
+        "endpoint_recall": 1.0,
+        "endpoints_expected": [
+          "/api/products",
+          "/api/search",
+          "/search"
+        ],
+        "endpoints_found": [
+          "/api/products",
+          "/api/search",
+          "/search"
+        ],
+        "endpoints_missed": []
+      }
+    },
+    "example.com": {
+      "label": "example.com",
+      "url": "https://example.com",
+      "checked_utc": "2026-10-12T12:14:15.262215+00:00",
+      "time_to_first_report_s": 3.17,
+      "tech_detected": [
+        "Cloudflare"
+      ],
+      "crawl_s": 1.02,
+      "extract_s": 1.29,
+      "total_recon_s": 5.48,
+      "routes_found": [
+        "/"
+      ],
+      "endpoints_found": [],
+      "route_count": 1,
+      "endpoint_count": 0,
+      "evidence_by_classification": {
+        "OBSERVED": 1,
+        "INFERRED": 1
+      }
+    },
+    "news.ycombinator.com": {
+      "label": "news.ycombinator.com",
+      "url": "https://news.ycombinator.com",
+      "checked_utc": "2026-10-12T12:14:20.744122+00:00",
+      "time_to_first_report_s": 3.25,
+      "tech_detected": [
+        "nginx"
+      ],
+      "crawl_s": 15.3,
+      "extract_s": 2.67,
+      "total_recon_s": 21.22,
+      "routes_found": [
+        "/",
+        "/ask",
+        "/from",
+        "/front",
+        "/hide"
+      ],
+      "endpoints_found": [
+        "https://hn.algolia.com/"
+      ],
+      "route_count": 5,
+      "endpoint_count": 1,
+      "evidence_by_classification": {
+        "OBSERVED": 6,
+        "INFERRED": 1
+      }
+    }
+  },
+  "notes": [
+    "Metrics are measured wall-clock on this machine; rerun to reproduce.",
+    "The fixture's /api/* endpoints are fictional (404 on the static server); they are client-declared, so extraction recall is still meaningful.",
+    "Targets (b) and (c) have no ground truth; only counts are reported."
+  ]
+}

@@ -1,0 +1,20 @@
+# Reference clones (large, not part of the project)
+rea-reference/
+reverse-skill-reference/
+
+# Runtime session data (created by running the server)
+sessions/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Test / benchmark artifacts
+.pytest_cache/
+*.log
+
+# OS
+.DS_Store

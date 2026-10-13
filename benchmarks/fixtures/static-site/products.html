@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acme Widgets — Products</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav aria-label="Main">
+    <a href="/">Home</a>
+    <a href="/about.html">About</a>
+    <a href="/products.html">Products</a>
+  </nav>
+  <main>
+    <h1>Products</h1>
+    <table aria-label="Product catalog">
+      <thead><tr><th>Name</th><th>Price</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <nav aria-label="Pagination">
+      <a href="/products.html?page=2" id="next">Next page</a>
+    </nav>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1007 @@
+#!/usr/bin/env python3
+"""OmniRecon MCP server — session-based, evidence-driven reverse engineering.
+
+Run:
+    ~/workspace/venvs/recon/bin/python ~/workspace/omnirecon/omnirecon/server.py
+Transport: stdio. FastMCP name: "omnirecon".
+
+Sibling modules (evidence, session, security, graph, browser_engine,
+source_intel, assets) are owned by other lanes and imported lazily: every tool
+degrades to an honest {"error","code","hint"} dict when a module is missing,
+never a traceback.
+"""
+from __future__ import annotations
+
+import datetime
+import importlib
+import json
+import os
+import sys
+import threading
+import uuid
+from pathlib import Path
+
+# Make `import omnirecon...` work when launched as `python omnirecon/server.py`
+# (script dir, not the project root, lands on sys.path in that case).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+
+from omnirecon import recon_primitives as RP
+from omnirecon import spec as SPEC
+from omnirecon import report as REPORT
+from omnirecon import verify as VERIFY
+
+mcp = FastMCP("omnirecon")
+
+SESSIONS_ROOT = Path(__file__).resolve().parent.parent / "sessions"
+VALID_CLASS = ("OBSERVED", "SOURCE_VERIFIED", "INFERRED", "UNVERIFIED", "BLOCKED")
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def _utcnow() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def _err(message: str, code: str = "internal", hint: str = "") -> dict:
+    return {"error": message, "code": code, "hint": hint}
+
+
+def _lane(name: str):
+    """Lazy import of a sibling lane module. Returns (module, None) or
+    (None, error_dict)."""
+    try:
+        return importlib.import_module(f"omnirecon.{name}"), None
+    except Exception as e:  # noqa: BLE001 - must never leak tracebacks
+        return None, _err(f"sibling module 'omnirecon.{name}' is unavailable",
+                          "unavailable", str(e)[:200])
+
+
+def _session_manager():
+    mod, err = _lane("session")
+    if err:
+        return None, err
+    try:
+        return mod.SessionManager(str(SESSIONS_ROOT)), None
+    except Exception as e:  # noqa: BLE001
+        return None, _err("could not initialise SessionManager",
+                          "internal", str(e)[:200])
+
+
+def _redact(obj):
+    mod, _ = _lane("security")
+    if mod is not None and hasattr(mod, "redact"):
+        try:
+            return mod.redact(obj)
+        except Exception:
+            return obj
+    return obj
+
+
+def _audit(session_id: str, action: str, detail: str = ""):
+    mod, _ = _lane("security")
+    if mod is not None and hasattr(mod, "audit"):
+        try:
+            mod.audit(session_id, action, detail, base_dir=str(SESSIONS_ROOT))
+        except Exception:
+            pass
+
+
+def _check_scope(url: str, allowed: list[str]) -> bool:
+    mod, _ = _lane("security")
+    if mod is not None and hasattr(mod, "check_scope"):
+        try:
+            return bool(mod.check_scope(url, allowed))
+        except Exception:
+            return True
+    return True
+
+
+def _read_ledger(session_id: str) -> list[dict]:
+    p = SESSIONS_ROOT / session_id / "evidence.jsonl"
+    out = []
+    if p.exists():
+        for line in p.read_text(errors="ignore").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    obj = json.loads(line)
+                    if isinstance(obj, dict):
+                        out.append(obj)
+                except Exception:
+                    continue
+    return out
+
+
+def _ledger_add(session_id: str, mgr, items: list[dict]) -> list[str]:
+    """Append findings through the real EvidenceLedger when available.
+
+    IMPORTANT: SessionManager caches the ledger in memory and checkpoint()
+    rewrites evidence.jsonl from that cache — so findings must go through
+    mgr.ledger(sid).add(), never appended to the file directly, or the next
+    checkpoint would silently discard them.
+    """
+    if mgr is not None and hasattr(mgr, "ledger"):
+        try:
+            led = mgr.ledger(session_id)
+            ids = [led.add(it) for it in items]
+            try:
+                mgr.checkpoint(session_id)
+            except Exception:
+                pass
+            return ids
+        except Exception:
+            pass
+    return _append_findings(session_id, items)
+
+
+def _append_findings(session_id: str, items: list[dict]) -> list[str]:
+    """Append finding dicts to evidence.jsonl, assigning F-XXXX ids. Returns ids."""
+    sdir = SESSIONS_ROOT / session_id
+    sdir.mkdir(parents=True, exist_ok=True)
+    existing = _read_ledger(session_id)
+    nums = []
+    for f in existing:
+        fid = str(f.get("id", ""))
+        if fid.startswith("F-") and fid[2:].isdigit():
+            nums.append(int(fid[2:]))
+    nxt = max(nums, default=0) + 1
+    ids = []
+    lines = []
+    for it in items:
+        fid = f"F-{nxt:04d}"
+        nxt += 1
+        cls = it.get("classification", "INFERRED")
+        if cls not in VALID_CLASS:
+            cls = "INFERRED"
+        rec = {
+            "id": fid,
+            "type": it.get("type", "note"),
+            "title": it.get("title", ""),
+            "detail": it.get("detail", ""),
+            "classification": cls,
+            "confidence": max(0.0, min(1.0, float(it.get("confidence", 0.5)))),
+            "confidence_why": it.get("confidence_why", ""),
+            "sources": list(it.get("sources", []) or []),
+            "route": it.get("route"),
+            "component": it.get("component"),
+            "endpoint": it.get("endpoint"),
+            "artifact": it.get("artifact"),
+            "timestamp": _utcnow(),
+            "verification": "unverified",
+            "limitations": it.get("limitations", ""),
+        }
+        lines.append(json.dumps(rec, ensure_ascii=False))
+        ids.append(fid)
+    if lines:
+        with open(sdir / "evidence.jsonl", "a") as fh:
+            fh.write("\n".join(lines) + "\n")
+    return ids
+
+
+def _finding(ftype: str, title: str, detail: str = "", classification: str = "INFERRED",
+             confidence: float = 0.5, why: str = "", sources=None, route=None,
+             component=None, endpoint=None, artifact=None, limitations="") -> dict:
+    return {"type": ftype, "title": title, "detail": detail,
+            "classification": classification, "confidence": confidence,
+            "confidence_why": why, "sources": list(sources or []),
+            "route": route, "component": component, "endpoint": endpoint,
+            "artifact": artifact, "limitations": limitations}
+
+
+def _open_browser(bmod):
+    """Launch the owned browser for recon.
+
+    Honors OMNIRECON_IGNORE_HTTPS_ERRORS=1 (needed behind TLS-intercepting
+    corporate/sandbox proxies whose CA the browser does not trust).
+    """
+    insecure = os.environ.get("OMNIRECON_IGNORE_HTTPS_ERRORS", "").strip() == "1"
+    browser = bmod.OwnedBrowser()
+    browser.launch(headless=True, ignore_https_errors=insecure)
+    browser._omni_insecure = insecure
+    return browser
+
+
+def _goto_resilient(browser, bmod, url, session_id, mgr):
+    """browser.goto with one automatic retry past certificate errors.
+
+    Returns (browser_to_use, page_dict). If the first attempt fails with a
+    certificate error and verification was not already disabled, the browser
+    is relaunched with ignore_https_errors=True, an OBSERVED finding about
+    the untrusted certificate is recorded (recon-relevant intel, common
+    behind TLS-intercepting proxies), and the navigation is retried once.
+    """
+    try:
+        return browser, browser.goto(url)
+    except Exception as e:  # noqa: BLE001 - error text is the signal
+        if "ERR_CERT" not in str(e) or getattr(browser, "_omni_insecure", False):
+            raise
+        try:
+            browser.close()
+        except Exception:
+            pass
+        nb = bmod.OwnedBrowser()
+        nb.launch(headless=True, ignore_https_errors=True)
+        nb._omni_insecure = True
+        try:
+            _ledger_add(session_id, mgr, [_finding(
+                "note", f"Untrusted TLS certificate on {url}",
+                "browser TLS verification failed "
+                f"({str(e)[:160]}); navigation retried with certificate "
+                "verification disabled and succeeded.",
+                "OBSERVED", 0.9, "browser TLS handshake observation",
+                sources=[url],
+                limitations="certificate chain details were not captured; "
+                            "page content was still observed normally")])
+        except Exception:
+            pass
+        return nb, nb.goto(url)
+
+
+# --- background jobs ---------------------------------------------------------
+
+class _LocalJobs:
+    """Minimal thread job manager used when session.JobManager is unavailable."""
+
+    def __init__(self):
+        self._jobs: dict[str, dict] = {}
+        self._lock = threading.Lock()
+
+    def submit(self, label: str, fn, *a, **kw) -> str:
+        jid = "J-" + uuid.uuid4().hex[:8]
+        rec = {"job_id": jid, "label": label, "status": "running",
+               "result": None, "error": None, "started_utc": _utcnow()}
+
+        def _run():
+            try:
+                res = fn(*a, **kw)
+                with self._lock:
+                    rec["status"] = "done"
+                    rec["result"] = res
+            except Exception as e:  # noqa: BLE001
+                with self._lock:
+                    rec["status"] = "failed"
+                    rec["error"] = str(e)[:500]
+
+        with self._lock:
+            self._jobs[jid] = rec
+        threading.Thread(target=_run, daemon=True).start()
+        return jid
+
+    def poll(self, job_id: str) -> dict:
+        with self._lock:
+            rec = self._jobs.get(job_id)
+            if not rec:
+                return {"status": "unknown", "error": "no such job"}
+            return dict(rec)
+
+    def for_session(self, session_id: str) -> list[dict]:
+        with self._lock:
+            return [{"job_id": j["job_id"], "label": j["label"],
+                     "status": j["status"], "session_id": j.get("session_id")}
+                    for j in self._jobs.values()
+                    if j.get("session_id") == session_id]
+
+
+_JOBS = _LocalJobs()
+
+
+def _submit_job(session_id: str, label: str, fn, *a, **kw) -> str:
+    mod, _ = _lane("session")
+    jm = None
+    if mod is not None and hasattr(mod, "JobManager"):
+        try:
+            jm = mod.JobManager()
+        except Exception:
+            jm = None
+    if jm is not None:
+        try:
+            jid = jm.submit(fn, *a, **kw)
+            # mirror into local registry so recon_status can report it
+            _JOBS._jobs[jid] = {"job_id": jid, "label": label,
+                                "status": "running", "session_id": session_id,
+                                "_jm": jm}
+            return jid
+        except Exception:
+            pass
+    jid = _JOBS.submit(label, fn, *a, **kw)
+    _JOBS._jobs[jid]["session_id"] = session_id
+    return jid
+
+
+def _job_status(job_id: str) -> dict:
+    rec = _JOBS._jobs.get(job_id)
+    if not rec:
+        return {"status": "unknown"}
+    jm = rec.get("_jm")
+    if jm is not None:
+        try:
+            return jm.poll(job_id)
+        except Exception:
+            pass
+    return _JOBS.poll(job_id)
+
+
+def _run_or_bg(session_id: str, background: bool, label: str, fn, *a, **kw):
+    if background:
+        jid = _submit_job(session_id, label, fn, *a, **kw)
+        _audit(session_id, "job_submitted", f"{label} -> {jid}")
+        return {"job_id": jid, "status": "running", "label": label,
+                "note": "poll progress via recon_status"}
+    try:
+        return fn(*a, **kw)
+    except Exception as e:  # noqa: BLE001
+        return _err(f"{label} failed", "internal", str(e)[:300])
+
+
+def _get_session(mgr, session_id: str):
+    try:
+        s = mgr.get(session_id)
+    except Exception as e:  # noqa: BLE001 - includes ReconError(session_not_found)
+        code = getattr(e, "code", "") or "internal"
+        if "not_found" in code or "not found" in str(e).lower():
+            return None, _err(f"no session '{session_id}'", "not_found",
+                              "call recon_start to create one")
+        return None, _err("session lookup failed", code, str(e)[:200])
+    if not s:
+        return None, _err(f"no session '{session_id}'", "not_found",
+                          "call recon_start to create one")
+    return s, None
+
+
+def _ledger_stats(mgr, session_id: str) -> dict:
+    """Ledger stats via the real EvidenceLedger when available."""
+    if mgr is not None and hasattr(mgr, "ledger"):
+        try:
+            return mgr.ledger(session_id).stats()
+        except Exception:
+            pass
+    findings = _read_ledger(session_id)
+    by_type: dict[str, int] = {}
+    by_class: dict[str, int] = {}
+    for f in findings:
+        by_type[f.get("type", "?")] = by_type.get(f.get("type", "?"), 0) + 1
+        by_class[f.get("classification", "?")] = \
+            by_class.get(f.get("classification", "?"), 0) + 1
+    return {"total": len(findings), "by_type": by_type,
+            "by_classification": by_class}
+
+
+def _minimal_graph(findings: list[dict]) -> dict:
+    nodes, edges = [], []
+    seen = set()
+
+    def add_node(nid, kind, label, fid):
+        if nid not in seen:
+            seen.add(nid)
+            nodes.append({"id": nid, "kind": kind, "label": label,
+                          "finding_id": fid})
+
+    for f in findings:
+        fid = f.get("id")
+        if f.get("type") == "route" and f.get("route"):
+            add_node("route:" + f["route"], "route", f["route"], fid)
+        elif f.get("type") == "endpoint" and f.get("endpoint"):
+            nid = "endpoint:" + f["endpoint"]
+            add_node(nid, "endpoint", f["endpoint"], fid)
+            if f.get("route"):
+                edges.append({"from": "route:" + f["route"], "to": nid,
+                              "rel": "calls"})
+        elif f.get("type") == "component" and f.get("component"):
+            add_node("component:" + f["component"], "component",
+                     f["component"], fid)
+    return {"nodes": nodes, "edges": edges}
+
+
+# ---------------------------------------------------------------------------
+# 14 tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def recon_start(target: str, mode: str = "fast", budget_json: str = "{}") -> dict:
+    """Start a reverse-engineering session for a URL or local repo path.
+    Runs Stage 1 (target validation) + Stage 2 (rapid recon) synchronously and
+    returns {session_id, rapid_report}. mode is 'fast' or 'thorough'.
+    budget_json is an optional JSON object, e.g. {"max_pages": 40}."""
+    if not target or not target.strip():
+        return _err("target is required", "invalid_input",
+                    "pass a URL (https://…) or a local repo path")
+    if mode not in ("fast", "thorough"):
+        return _err(f"invalid mode '{mode}'", "invalid_input",
+                    "mode must be 'fast' or 'thorough'")
+    try:
+        budget = json.loads(budget_json or "{}")
+        if not isinstance(budget, dict):
+            raise ValueError("budget must be a JSON object")
+    except Exception as e:  # noqa: BLE001
+        return _err("budget_json is not valid JSON", "invalid_input", str(e)[:200])
+    mgr, err = _session_manager()
+    if err:
+        return err
+    try:
+        session = mgr.create(target.strip(), mode=mode, budget=budget)
+    except Exception as e:  # noqa: BLE001
+        return _err("recon_start failed", "internal", str(e)[:300])
+    _audit(session.get("session_id") or session.get("id", ""), "recon_start",
+           f"target={target.strip()} mode={mode}")
+    return session
+
+
+@mcp.tool()
+def recon_status(session_id: str) -> dict:
+    """Session status: stage, progress, ledger stats, and background jobs."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    stats = _ledger_stats(mgr, session_id)
+    jobs = []
+    for jid, rec in list(_JOBS._jobs.items()):
+        if rec.get("session_id") == session_id:
+            st = _job_status(jid)
+            jobs.append({"job_id": jid, "label": rec.get("label"),
+                         "status": st.get("status")})
+    out = dict(session)
+    out["ledger"] = stats
+    out["jobs"] = jobs
+    return out
+
+
+@mcp.tool()
+def recon_discover_routes(session_id: str, max_pages: int = 40,
+                           max_depth: int = 3, background: bool = False) -> dict:
+    """Discover and classify reachable routes for the session target.
+    Crawls internal pages and records route + endpoint findings. Long-running:
+    pass background=true to get a job_id and poll via recon_status."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    max_pages = max(1, min(int(max_pages), 200))
+    max_depth = max(0, min(int(max_depth), 4))
+    target = session.get("target", "")
+
+    def _do():
+        crawl = RP.crawl_site(target, max_pages=max_pages, max_depth=max_depth)
+        items = []
+        for p in crawl.get("pages", []):
+            items.append(_finding(
+                "route", f"Route {p['url']}",
+                f"title={p.get('title')!r} depth={p.get('depth')} "
+                f"internal_links={p.get('internal_links')}",
+                "OBSERVED", 0.9, "page fetched and parsed during crawl",
+                sources=[p["url"]], route=p["url"]))
+        for e in crawl.get("api_endpoints", [])[:120]:
+            items.append(_finding(
+                "endpoint", f"Endpoint {e['endpoint']}",
+                f"kind={e['kind']} scope={e['scope']} discovered across crawled pages",
+                "OBSERVED", 0.75, "endpoint literal found in crawled page/JS text",
+                sources=[target], endpoint=e["endpoint"]))
+        ids = _ledger_add(session_id, mgr, items)
+        try:
+            mgr.update_stage(session_id, 3)
+            mgr.checkpoint(session_id)
+        except Exception:
+            pass
+        _audit(session_id, "discover_routes",
+               f"pages={crawl.get('pages_crawled')} findings={len(ids)}")
+        return {"pages_crawled": crawl.get("pages_crawled"),
+                "routes_recorded": len(crawl.get("pages", [])),
+                "endpoints_indexed": len(crawl.get("api_endpoints", [])),
+                "finding_ids": ids}
+
+    return _run_or_bg(session_id, background, "discover_routes", _do)
+
+
+@mcp.tool()
+def recon_inspect_page(session_id: str, url: str) -> dict:
+    """Deep-inspect one page: DOM structure, controls, forms, accessibility data,
+    screenshots (desktop/tablet/mobile), console errors. Uses the owned browser
+    when available; falls back to static analysis (marked 'limited')."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not url or not url.strip():
+        return _err("url is required", "invalid_input", "")
+    url = url.strip()
+
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        scan = RP.platform_scan(url)
+        items = [_finding(
+            "note", f"Static inspection of {url}",
+            f"browser engine unavailable; static scan: status={scan.get('status')} "
+            f"title={scan.get('title')!r} tech={[t['tech'] for t in scan.get('tech', [])]}",
+            "OBSERVED", 0.6, "static fetch only — no rendered DOM observed",
+            sources=[url], route=url,
+            limitations="rendered DOM, AX tree, screenshots, and console "
+                        "not captured (no browser engine)")]
+        ids = _ledger_add(session_id, mgr, items)
+        return {"url": url, "mode": "limited-static",
+                "scan": _redact(scan), "finding_ids": ids,
+                "note": "browser_engine unavailable; static fallback used"}
+
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, url,
+                                            session_id, mgr)
+            pid = page.get("page_id")
+            snap = browser.snapshot(pid)
+            shots = {}
+            for vp in ("desktop", "tablet", "mobile"):
+                try:
+                    shots[vp] = browser.screenshot(pid, viewport=vp)
+                except Exception:
+                    pass
+            console = browser.console_errors(pid)
+        finally:
+            browser.close()
+    except Exception as e:  # noqa: BLE001
+        return _err("browser inspection failed", "internal", str(e)[:300])
+
+    snap = _redact(snap)
+    items = [_finding(
+        "route", f"Inspected {snap.get('url', url)}",
+        f"title={snap.get('title')!r} controls={len(snap.get('controls', []))} "
+        f"forms={len(snap.get('forms', []))}",
+        "OBSERVED", 0.9, "rendered in owned browser",
+        sources=[url], route=snap.get("url", url))]
+    for form in snap.get("forms", [])[:10]:
+        items.append(_finding(
+            "component", f"Form -> {form.get('action')}",
+            f"method={form.get('method')} inputs={[i.get('name') for i in form.get('inputs', [])]}",
+            "OBSERVED", 0.85, "form observed in rendered DOM",
+            sources=[url], route=snap.get("url", url),
+            component=f"form:{form.get('action')}"))
+    if console:
+        items.append(_finding(
+            "state", f"Console errors on {url}",
+            "; ".join(console[:8]), "OBSERVED", 0.9,
+            "console errors captured from the live page",
+            sources=[url], route=url,
+            limitations="errors observed at load; interaction-triggered errors not covered"))
+    ids = _ledger_add(session_id, mgr, items)
+    _audit(session_id, "inspect_page", url)
+    return {"url": snap.get("url", url), "mode": "browser",
+            "title": snap.get("title"),
+            "controls": len(snap.get("controls", [])),
+            "forms": snap.get("forms", []),
+            "screenshots": shots,
+            "console_errors": console,
+            "finding_ids": ids}
+
+
+@mcp.tool()
+def recon_trace_workflow(session_id: str, start_url: str, goal: str,
+                         max_steps: int = 15) -> dict:
+    """Explore a bounded user journey from start_url toward a goal, recording
+    state transitions (DOM changes, URL changes, network effects) per action.
+    Safe actions only — never purchases, payments, deletions, or credential
+    exfiltration. Requires the browser engine."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        return _err("workflow tracing requires the browser engine",
+                    "unavailable",
+                    "omnirecon.browser_engine is not available in this deployment")
+    max_steps = max(1, min(int(max_steps), 40))
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, start_url,
+                                            session_id, mgr)
+            pid = page.get("page_id")
+            steps: list[dict] = []
+            tried_refs: set[str] = set()
+            goal_words = [w.lower() for w in goal.split() if len(w) > 2]
+            for _ in range(max_steps):
+                snap = browser.snapshot(pid)
+                controls = [c for c in snap.get("controls", [])
+                            if c.get("visible", True)
+                            and c.get("role") in ("button", "link")
+                            and str(c.get("ref")) not in tried_refs]
+                if not controls:
+                    break
+
+                def _score(c):
+                    name = str(c.get("name", "")).lower()
+                    return sum(1 for w in goal_words if w in name)
+
+                controls.sort(key=_score, reverse=True)
+                ctrl = controls[0]
+                tried_refs.add(str(ctrl.get("ref")))
+                try:
+                    res = browser.interact(
+                        pid, {"kind": "click", "ref": ctrl.get("ref")})
+                except Exception as ie:  # noqa: BLE001 - one bad control
+                    steps.append({"action": f"click {ctrl.get('name')}",
+                                  "observed": False,
+                                  "note": f"interact failed: {str(ie)[:120]}"})
+                    continue
+                res = _redact(res)
+                steps.append({
+                    "action": f"click '{ctrl.get('name')}'"
+                              f" ({ctrl.get('role')})",
+                    "observed": bool(res.get("observed")),
+                    "url_before": res.get("url_before"),
+                    "url_after": res.get("url_after"),
+                    "dom_changed": res.get("dom_changed"),
+                    "new_requests": (res.get("new_requests") or [])[:10],
+                    "note": res.get("note", ""),
+                })
+                if res.get("url_after") and "logout" in goal.lower():
+                    break
+        finally:
+            browser.close()
+    except Exception as e:  # noqa: BLE001
+        return _err("workflow trace failed", "internal", str(e)[:300])
+    items = []
+    for s in steps:
+        items.append(_finding(
+            "workflow",
+            f"Workflow step: {s['action']}",
+            f"observed={s['observed']} {s['url_before']} -> {s['url_after']} "
+            f"dom_changed={s['dom_changed']} "
+            f"requests={len(s.get('new_requests', []))}",
+            "OBSERVED" if s["observed"] else "UNVERIFIED",
+            0.85 if s["observed"] else 0.3,
+            "state transition recorded by the browser engine"
+            if s["observed"]
+            else "action produced no observable state change",
+            sources=[start_url], route=s.get("url_after")))
+    ids = _ledger_add(session_id, mgr, items)
+    _audit(session_id, "trace_workflow",
+           f"{start_url} goal={goal} steps={len(steps)}")
+    return {"goal": goal, "steps": steps, "finding_ids": ids,
+            "note": "only actions with observed DOM/URL/network effects are "
+                    "marked OBSERVED; visible-but-untested controls are not "
+                    "claimed to work"}
+
+
+@mcp.tool()
+def recon_capture_network(session_id: str, url: str,
+                          duration_ms: int = 8000) -> dict:
+    """Capture the page's real network traffic (XHR/fetch/WebSocket) and build
+    a redacted endpoint catalog. Secrets are stripped before storage."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    duration_ms = max(1000, min(int(duration_ms), 30000))
+
+    capture = None
+    bmod, _ = _lane("browser_engine")
+    if bmod is not None and hasattr(bmod, "OwnedBrowser"):
+        try:
+            browser = _open_browser(bmod)
+            try:
+                browser, page = _goto_resilient(browser, bmod, url,
+                                                session_id, mgr)
+                capture = {"requests": browser.network_capture(
+                    page.get("page_id"), duration_ms)}
+            finally:
+                browser.close()
+        except Exception:
+            capture = None
+    if capture is None:
+        raw = RP.capture_live_traffic(url, wait_ms=duration_ms)
+        if raw.get("error"):
+            return _err("network capture failed", "internal",
+                        raw["error"][:300])
+        capture = {"requests": raw.get("api_requests", [])}
+
+    capture = _redact(capture)
+    reqs = capture.get("requests", []) if isinstance(capture, dict) else []
+    seen_eps: dict[str, dict] = {}
+    for r in reqs:
+        u = r.get("url", "")
+        if u and u not in seen_eps:
+            seen_eps[u] = r
+    items = [_finding(
+        "endpoint", f"Observed {r.get('method', 'GET')} {u}",
+        f"status={r.get('status')} type={r.get('type')}",
+        "OBSERVED", 0.95, "request actually issued by the page in the browser",
+        sources=[url], endpoint=u) for u, r in list(seen_eps.items())[:150]]
+    ids = _ledger_add(session_id, mgr, items)
+    _audit(session_id, "capture_network",
+           f"{url} requests={len(reqs)} endpoints={len(ids)}")
+    return {"url": url, "requests_observed": len(reqs),
+            "unique_endpoints": len(seen_eps),
+            "endpoints": [{"method": r.get("method"), "url": u,
+                           "status": r.get("status"), "type": r.get("type")}
+                          for u, r in list(seen_eps.items())[:150]],
+            "finding_ids": ids,
+            "note": "credentials/cookies/tokens redacted before storage"}
+
+
+@mcp.tool()
+def recon_analyze_source(session_id: str, path_or_repo_url: str) -> dict:
+    """Analyze a local codebase or git repo URL: languages, frameworks, routes,
+    components, state management, API clients, migrations, auth boundaries.
+    Never reads secret values (env var names only)."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not path_or_repo_url or not path_or_repo_url.strip():
+        return _err("path_or_repo_url is required", "invalid_input", "")
+
+    smod, _ = _lane("source_intel")
+    used_lane = smod is not None and hasattr(smod, "analyze")
+    try:
+        if used_lane:
+            # Lane C records its own findings to the session ledger.
+            analysis = smod.analyze(session_id, path_or_repo_url.strip())
+        else:
+            analysis = RP.analyze_codebase(path_or_repo_url.strip())
+    except Exception as e:  # noqa: BLE001
+        return _err("source analysis failed", "internal", str(e)[:300])
+    if isinstance(analysis, dict) and analysis.get("error"):
+        return _err("source analysis failed", "internal",
+                    str(analysis["error"])[:300])
+
+    ids: list[str] = []
+    if not used_lane:
+        # Fallback path: the primitives don't touch the ledger, so record here.
+        items = []
+        langs = ", ".join(f"{l['language']}({l['files']} files)"
+                          for l in analysis.get("languages", [])[:6])
+        if langs:
+            items.append(_finding(
+                "tech", "Codebase language mix", langs, "OBSERVED", 0.95,
+                "counted from the repository tree", sources=[path_or_repo_url]))
+        for fw in analysis.get("framework_guess", [])[:8]:
+            items.append(_finding(
+                "tech", f"Framework: {fw}", "detected from dependency manifests",
+                "SOURCE_VERIFIED", 0.85, "manifest-backed framework detection",
+                sources=[path_or_repo_url]))
+        for r in analysis.get("routes", [])[:60]:
+            items.append(_finding(
+                "route", f"Code route {r['route']}",
+                f"style={r.get('style')} file={r.get('file')}",
+                "SOURCE_VERIFIED", 0.9, "route pattern found in source",
+                sources=[r.get("file", path_or_repo_url)], route=r["route"]))
+        ids = _ledger_add(session_id, mgr, items)
+    _audit(session_id, "analyze_source", path_or_repo_url.strip())
+    return {"analysis": analysis, "finding_ids": ids,
+            "note": "findings recorded by source_intel" if used_lane
+            else "findings recorded by fallback"}
+
+
+@mcp.tool()
+def recon_extract_assets(session_id: str, url: str) -> dict:
+    """Inventory a page's assets: images, fonts, icons, and design tokens
+    (colors, spacing, typography signals) from the DOM and CSS."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    amod, aerr = _lane("assets")
+    if aerr or not hasattr(amod, "inventory"):
+        return _err("asset extraction is unavailable", "unavailable",
+                    "omnirecon.assets is not available in this deployment")
+    try:
+        # Lane C records its own findings to the session ledger.
+        inv = amod.inventory(session_id, url.strip())
+    except Exception as e:  # noqa: BLE001
+        return _err("asset extraction failed", "internal", str(e)[:300])
+    if isinstance(inv, dict) and inv.get("error"):
+        return _err("asset extraction failed", "internal",
+                    str(inv["error"])[:300])
+    _audit(session_id, "extract_assets", url.strip())
+    return {"url": url, "inventory": inv,
+            "note": "findings recorded by assets.inventory"}
+
+
+@mcp.tool()
+def recon_get_graph(session_id: str) -> dict:
+    """Return the route / component / workflow / API dependency graph as
+    {nodes, edges}, built from the evidence ledger."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    gmod, _ = _lane("graph")
+    graph = None
+    if gmod is not None and hasattr(gmod, "build_graph") \
+            and hasattr(mgr, "ledger"):
+        try:
+            graph = gmod.build_graph(mgr.ledger(session_id),
+                                     target=session.get("target"))
+        except Exception:
+            graph = None
+    if graph is None:
+        graph = _minimal_graph(_read_ledger(session_id))
+    try:
+        with open(SESSIONS_ROOT / session_id / "graph.json", "w") as fh:
+            json.dump(graph, fh, indent=2, default=str)
+    except Exception:
+        pass
+    return graph
+
+
+@mcp.tool()
+def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
+                       classification: str = "", query: str = "") -> dict:
+    """Retrieve ledger findings: by ID, by type/classification filter, or by
+    free-text search over titles and details."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    # Prefer the real EvidenceLedger (filters + search); fall back to the file.
+    if hasattr(mgr, "ledger"):
+        try:
+            led = mgr.ledger(session_id)
+            if finding_id:
+                f = led.get(finding_id)
+                if not f:
+                    return _err(f"no finding '{finding_id}'", "not_found", "")
+                return {"finding": f}
+            if classification and classification not in VALID_CLASS:
+                return _err(f"invalid classification '{classification}'",
+                            "invalid_input", f"one of {VALID_CLASS}")
+            res = led.list(type=type or None,
+                           classification=classification or None)
+            if query:
+                res = led.search(query)
+                if type:
+                    res = [f for f in res if f.get("type") == type]
+                if classification:
+                    res = [f for f in res
+                           if f.get("classification") == classification]
+            return {"count": len(res), "findings": res[:200]}
+        except Exception:
+            pass
+    findings = _read_ledger(session_id)
+    if finding_id:
+        f = next((x for x in findings if x.get("id") == finding_id), None)
+        if not f:
+            return _err(f"no finding '{finding_id}'", "not_found", "")
+        return {"finding": f}
+    res = findings
+    if type:
+        res = [f for f in res if f.get("type") == type]
+    if classification:
+        if classification not in VALID_CLASS:
+            return _err(f"invalid classification '{classification}'",
+                        "invalid_input", f"one of {VALID_CLASS}")
+        res = [f for f in res if f.get("classification") == classification]
+    if query:
+        q = query.lower()
+        res = [f for f in res
+               if q in str(f.get("title", "")).lower()
+               or q in str(f.get("detail", "")).lower()]
+    return {"count": len(res), "findings": res[:200]}
+
+
+@mcp.tool()
+def recon_generate_spec(session_id: str) -> dict:
+    """Generate the 14-section reconstruction blueprint from the evidence
+    ledger + graph. Saved to spec.json. Every claim carries finding_ids;
+    unevidenced areas are marked UNVERIFIED/BLOCKED, never invented."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    ledger = mgr.ledger(session_id) if hasattr(mgr, "ledger") else None
+    findings = _read_ledger(session_id)
+    gpath = SESSIONS_ROOT / session_id / "graph.json"
+    graph = None
+    if gpath.exists():
+        try:
+            graph = json.loads(gpath.read_text())
+        except Exception:
+            graph = None
+    if graph is None:
+        graph = _minimal_graph(findings)
+    try:
+        spec = SPEC.generate_spec(ledger if ledger is not None else findings,
+                                  graph)
+    except Exception as e:  # noqa: BLE001
+        return _err("spec generation failed", "internal", str(e)[:300])
+    try:
+        with open(SESSIONS_ROOT / session_id / "spec.json", "w") as fh:
+            json.dump(spec, fh, indent=2, ensure_ascii=False, default=str)
+        mgr.update_stage(session_id, 5)
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "generate_spec",
+           f"findings={len(findings)} sections={len(spec.get('sections', {}))}")
+    return spec
+
+
+@mcp.tool()
+def recon_compare_build(session_id: str, build_url: str) -> dict:
+    """Compare a reconstructed build against the session's recorded reference:
+    route coverage, endpoint overlap, deviations. Honest about limits — no
+    pixel-perfect claims (screenshot comparison is out of scope)."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not build_url or not build_url.strip():
+        return _err("build_url is required", "invalid_input", "")
+    try:
+        result = VERIFY.compare_build(session_id, build_url.strip())
+    except Exception as e:  # noqa: BLE001
+        return _err("build comparison failed", "internal", str(e)[:300])
+    _audit(session_id, "compare_build", build_url.strip())
+    return result
+
+
+@mcp.tool()
+def recon_export_report(session_id: str, format: str = "markdown") -> dict:
+    """Export the session findings as a Markdown report or machine-readable
+    JSON. Returns {path, content}. Artifacts land in the session directory."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if format not in ("markdown", "json"):
+        return _err(f"invalid format '{format}'", "invalid_input",
+                    "format must be 'markdown' or 'json'")
+    try:
+        if format == "json":
+            path, content = REPORT.export_json(session)
+        else:
+            path, content = REPORT.export_markdown(session)
+    except Exception as e:  # noqa: BLE001
+        return _err("report export failed", "internal", str(e)[:300])
+    _audit(session_id, "export_report", f"format={format} path={path}")
+    return {"path": path, "content": content}
+
+
+@mcp.tool()
+def recon_cancel(session_id: str) -> dict:
+    """Stop a running analysis session safely."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    try:
+        result = mgr.cancel(session_id)
+    except Exception as e:  # noqa: BLE001
+        return _err("cancel failed", "internal", str(e)[:300])
+    _audit(session_id, "cancel", "")
+    return result if isinstance(result, dict) else {"session_id": session_id,
+                                                    "status": "cancelled"}
+
+
+if __name__ == "__main__":
+    mcp.run()
