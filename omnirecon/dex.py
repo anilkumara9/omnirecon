@@ -248,6 +248,18 @@ def _parse(data: bytes) -> dict:
         })
 
     interesting = _interesting_methods([m["signature"] for m in methods])
+    # String-encryption heuristic: high-entropy strings suggest packing/
+    # obfuscation. Shannon entropy over the string pool.
+    import math
+    def _entropy(s: str) -> float:
+        if not s:
+            return 0.0
+        from collections import Counter
+        c = Counter(s)
+        n = len(s)
+        return -sum((v / n) * math.log2(v / n) for v in c.values())
+    suspicious = [s[:80] for s in strings
+                  if len(s) >= 16 and _entropy(s) > 4.5][:10]
     return {
         "valid": True,
         "dex_version": version,
@@ -260,6 +272,8 @@ def _parse(data: bytes) -> dict:
         "field_count": len(fields),
         "method_count": len(methods),
         "class_count": len(classes),
+        "high_entropy_strings": suspicious,
+        "likely_obfuscated": len(suspicious) >= 5,
         "classes": classes[:_MAX_CLASSES_OUT],
         "interesting_apis": interesting,
     }

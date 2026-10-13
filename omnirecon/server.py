@@ -538,6 +538,10 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
                 except Exception:
                     pass
             console = browser.console_errors(pid)
+            try:
+                storage = browser.storage_snapshot(pid)
+            except Exception:
+                storage = {}
         finally:
             browser.shutdown()
     except Exception as e:  # noqa: BLE001
@@ -572,6 +576,23 @@ def recon_inspect_page(session_id: str, url: str) -> dict:
                 "OBSERVED", 0.95, "screenshot taken in owned browser",
                 sources=[url], route=snap.get("url", url), artifact=path,
                 engine="rendered"))
+    # Client-side storage: tokens, feature flags, cached state live here.
+    if storage:
+        ls_keys = list((storage.get("localStorage") or {}).keys())[:20]
+        ss_keys = list((storage.get("sessionStorage") or {}).keys())[:20]
+        cookies = (storage.get("cookies") or [])[:20]
+        idbs = (storage.get("indexedDB") or [])[:10]
+        # Redact values — only key names go to the ledger.
+        detail = (f"localStorage keys: {ls_keys or 'none'}\n"
+                  f"sessionStorage keys: {ss_keys or 'none'}\n"
+                  f"cookie names: {cookies or 'none'}\n"
+                  f"IndexedDB: {idbs or 'none'}")
+        items.append(_finding(
+            "state", f"Client storage on {url}",
+            _redact(detail), "OBSERVED", 0.9,
+            "storage dumped from the live page; values redacted, key names only",
+            sources=[url], route=snap.get("url", url), engine="rendered",
+            limitations="values never stored; IndexedDB contents not enumerated"))
     ids = _ledger_add(session_id, mgr, items)
     _audit(session_id, "inspect_page", url)
     return {"url": snap.get("url", url), "mode": "browser",

@@ -774,6 +774,36 @@ class AsyncOwnedBrowser:
         return [m for m in entry["console"] if m.startswith("[error]")
                 or m.startswith("[pageerror]")]
 
+    async def storage_snapshot(self, page_id: int) -> dict:
+        """Dump client-side storage: localStorage, sessionStorage, cookies,
+        IndexedDB database names. Secrets are redacted by the caller."""
+        entry = self._get_page_entry(page_id)
+        page = entry["page"]
+        js = """() => {
+          const out = {localStorage: {}, sessionStorage: {}, cookies: [],
+                       indexedDB: []};
+          try { for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i); out.localStorage[k] = localStorage.getItem(k); } } catch (e) {}
+          try { for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i); out.sessionStorage[k] = sessionStorage.getItem(k); } } catch (e) {}
+          try { out.cookies = document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(Boolean); } catch (e) {}
+          try { out.indexedDB = []; } catch (e) {}
+          return out;
+        }"""
+        try:
+            data = await page.evaluate(js)
+        except Exception:
+            data = {}
+        # IndexedDB needs an async check
+        try:
+            dbs = await page.evaluate(
+                "async () => (indexedDB.databases ? "
+                "(await indexedDB.databases()).map(d => d.name) : [])")
+            data["indexedDB"] = dbs or []
+        except Exception:
+            pass
+        return data if isinstance(data, dict) else {}
+
     # -- interaction -------------------------------------------------------
 
     async def _resolve_target(self, entry: dict, action: dict) -> tuple[str, str, str]:
@@ -1112,6 +1142,9 @@ class OwnedBrowser:
     def console_errors(self, page_id: int) -> list[str]:
         # pure local read; no loop needed
         return self._impl.console_errors(page_id)
+
+    def storage_snapshot(self, page_id: int) -> dict:
+        return self._run(self._impl.storage_snapshot(page_id))
 
     def interact(self, page_id: int, action: dict) -> dict:
         return self._run(self._impl.interact(page_id, action))

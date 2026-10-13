@@ -277,11 +277,18 @@ _QUOTED_URL = re.compile(
     r"""['"`](\/?[A-Za-z0-9_\-\.\/\?\#\=\&\%\:\+\@]+)['"`]"""
 )
 _FETCH_CALL = re.compile(r"""\bfetch\s*\(\s*['"`]([^'"`]+)['"`]""")
+_FETCH_TPL = re.compile(r"""\bfetch\s*\(\s*`([^`$]+?)(?:\$\{[^`]*\})?[^`]*`""")
 _AXIOS_CALL = re.compile(r"""\baxios\s*\.\s*(?:get|post|put|patch|delete|head|options)\s*\(\s*['"`]([^'"`]+)['"`]""")
+_AXIOS_TPL = re.compile(r"""\baxios\s*\.\s*(?:get|post|put|patch|delete|head|options)\s*\(\s*`([^`$]+?)(?:\$\{[^`]*\})?""")
 _AJAX_URL = re.compile(r"""\burl\s*:\s*['"`]([^'"`\/][^'"`]*|/[^\s'"`]+)['"`]""")
+_JQUERY_AJAX = re.compile(r"""\$\s*\.\s*(?:ajax|get|post|getJSON)\s*\(\s*(?:\{[^}]*?url\s*:\s*['"`]([^'"`]+)['"`]|['"`]([^'"`]+)['"`])""")
+_XHR_OPEN = re.compile(r"""\.open\s*\(\s*['"`](?:GET|POST|PUT|PATCH|DELETE|HEAD)['"`]\s*,\s*['"`]([^'"`]+)['"`]""")
 _WS_NEW = re.compile(r"""\bnew\s+WebSocket\s*\(\s*['"`]([^'"`]+)['"`]""")
 _ES_NEW = re.compile(r"""\bnew\s+EventSource\s*\(\s*['"`]([^'"`]+)['"`]""")
 _GQL_OP = re.compile(r"""\b(?:query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)""")
+_BEACON = re.compile(r"""\bnavigator\s*\.\s*sendBeacon\s*\(\s*['"`]([^'"`]+)['"`]""")
+_TRPC = re.compile(r"""\btrpc\s*\.\s*[A-Za-z0-9_]+\s*\.\s*(?:query|mutate)\s*\(\s*['"`]([^'"`]+)['"`]""")
+_RQ_HOOK = re.compile(r"""\buse(?:Query|Mutation|InfiniteQuery)\s*\(\s*(?:\[)?\s*['"`]([^'"`]+)['"`]""")
 
 
 def _classify_endpoint(s: str, base_reg: str, strict: bool = False) -> dict | None:
@@ -338,7 +345,21 @@ def extract_endpoints_from_text(text: str, base_url: str = "") -> dict:
 
     for m in _FETCH_CALL.finditer(text):
         add(m.group(1))
+    for m in _FETCH_TPL.finditer(text):
+        add(m.group(1))  # template literal: static prefix before ${...}
     for m in _AXIOS_CALL.finditer(text):
+        add(m.group(1))
+    for m in _AXIOS_TPL.finditer(text):
+        add(m.group(1))
+    for m in _JQUERY_AJAX.finditer(text):
+        add(m.group(1) or m.group(2))
+    for m in _XHR_OPEN.finditer(text):
+        add(m.group(1))
+    for m in _BEACON.finditer(text):
+        add(m.group(1))
+    for m in _TRPC.finditer(text):
+        add(m.group(1))
+    for m in _RQ_HOOK.finditer(text):
         add(m.group(1))
     for m in _WS_NEW.finditer(text):
         add(m.group(1))

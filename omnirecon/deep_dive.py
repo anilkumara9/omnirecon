@@ -207,14 +207,41 @@ def recover_sourcemaps(session_id: str, page_url: str,
                 except Exception:
                     continue
                 sources = data.get("sources") or []
+                contents = data.get("sourcesContent") or []
                 if not sources:
                     continue
                 maps_found.append(map_url)
-                for s in sources:
+                # Capture the actual original code, not just filenames.
+                src_dir = os.path.join(_sessions_dir(), session_id,
+                                       "artifacts", "sourcemap_sources")
+                os.makedirs(src_dir, exist_ok=True)
+                saved = 0
+                for i, s in enumerate(sources):
                     s = str(s)
-                    if s.startswith("webpack://"):
-                        s = s[len("webpack://"):]
-                    all_sources.add(s[:300])
+                    name = s[len("webpack://"):] if s.startswith("webpack://") \
+                        else s
+                    all_sources.add(name[:300])
+                    if i < len(contents) and contents[i]:
+                        safe = re.sub(r"[^A-Za-z0-9_.-]", "_",
+                                      name.lstrip("./"))[:120] or f"src_{i}"
+                        fp = os.path.join(src_dir, f"{saved:03d}_{safe}")
+                        try:
+                            with open(fp, "w", encoding="utf-8",
+                                      errors="replace") as fh:
+                                fh.write(contents[i])
+                            saved += 1
+                        except OSError:
+                            pass
+                if saved:
+                    _append(session_id, _mk(
+                        "asset",
+                        f"Sourcemap original code: {saved} files from "
+                        f"{map_url[:80]}",
+                        f"Original (unminified) source files written to "
+                        f"{src_dir} — read these, not the bundle.",
+                        "SOURCE_VERIFIED", 0.95,
+                        "sourcesContent extracted from the site's .map file",
+                        [map_url], artifact=src_dir))
                 break  # one map per script is enough
 
     all_sources = sorted(all_sources)
@@ -360,10 +387,12 @@ def probe_endpoints(session_id: str, base_url: str,
                 path = ep if ep.startswith("/") else "/" + ep
                 url = origin + path.split("?")[0]
             status, note = None, ""
+            resp_headers = {}
             for method in ("HEAD", "GET"):
                 try:
                     r = c.request(method, url)
                     status = r.status_code
+                    resp_headers = dict(r.headers)
                     break
                 except Exception as e:
                     note = str(e)[:120]
@@ -385,6 +414,32 @@ def probe_endpoints(session_id: str, base_url: str,
                 verdict = "dead"
                 dead += 1
             results.append({"endpoint": ep, "status": status, "verdict": verdict})
+            # 429: mine rate-limit headers — behavioral intel, not just a verdict.
+            if status == 429:
+                rl = {k: v for k, v in resp_headers.items()
+                      if k.lower() in ("retry-after", "x-ratelimit-limit",
+                                       "x-ratelimit-remaining",
+                                       "x-ratelimit-reset", "ratelimit-policy")}
+                if rl:
+                    _append(session_id, _mk(
+                        "state", f"Rate limit on {ep[:60]}",
+                        f"429 headers: {rl}. Respect these in rebuild traffic.",
+                        "OBSERVED", 0.9, "rate-limit headers from live probe",
+                        [url], endpoint=ep))
+            # Pagination params: don't strip them silently — record the pattern.
+            if "?" in ep:
+                qs = ep.split("?", 1)[1]
+                pag = [p.split("=")[0] for p in qs.split("&")
+                       if p.split("=")[0].lower() in
+                       ("cursor", "page", "offset", "limit", "per_page",
+                        "perpage", "after", "before", "next", "token")]
+                if pag:
+                    _append(session_id, _mk(
+                        "state", f"Pagination on {ep[:60]}",
+                        f"Pagination params observed: {pag}. Rebuild must "
+                        f"support the same pagination scheme.",
+                        "OBSERVED", 0.85, "query params from discovered URL",
+                        [url], endpoint=ep))
             # politeness: small delay between probes so endpoint probing can
             # never be mistaken for aggressive scanning (M5 fix)
             time.sleep(0.25)
