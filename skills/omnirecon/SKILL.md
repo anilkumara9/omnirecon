@@ -13,18 +13,30 @@ how its key workflows behave, and a prioritized plan to rebuild it.
 
 ## When to use OmniRecon vs REA
 
+OmniRecon is the universal front door. Every target below enters through
+`recon_start`, which routes it to the right engine and fuses all results into
+one evidence ledger.
+
 - **Live web platform or app (URL)** → OmniRecon. It drives its own headless
   browser: crawls routes, clicks through workflows, captures real network
   traffic, and fuses everything into one evidence ledger.
 - **Local source repository** → OmniRecon (`recon_analyze_source`). Language
   breakdown, frameworks, routes, components, migrations, auth boundaries.
-- **Shipped native binary, APK/IPA, firmware, .NET assembly, EVM bytecode** →
-  REA (`morluto/rea`), not OmniRecon. OmniRecon does not do binary forensics.
-- **Already have REA evidence** (e.g. a JS bundle decompiled) → feed the
-  findings into OmniRecon as a source alongside the live site; cite both.
+- **OpenAPI/Swagger document URL** → OmniRecon (`recon_start`; routed to the
+  API pipeline). Full path inventory, auth schemes, schemas.
+- **Shipped artifact: APK/IPA, native binary, JS bundle** → OmniRecon
+  (`recon_start` or `recon_analyze_artifact`). OmniRecon extracts honest
+  structural intel itself (format, symbols, manifest, string-mined URLs) and,
+  when the REA CLI is installed with a configured provider
+  (Ghidra/Hopper/IDA), automatically fuses REA's deep decompilation into the
+  same ledger. If no REA provider is configured, deep decompilation is
+  recorded as BLOCKED — never faked.
+- **Deep binary decompilation only** (firmware, .NET, EVM, no REA installed)
+  → run REA (`morluto/rea`) directly, then feed its findings back as cited
+  evidence.
 
-Rule of thumb: *running software you can browse or read* → OmniRecon;
-*opaque shipped artifacts* → REA.
+Rule of thumb: *start everything in OmniRecon*; it routes to REA's engines
+where they are the authority.
 
 ## Master routing table
 
@@ -39,6 +51,8 @@ use the first row that fits.
 | Site + public API docs | `recon_start` | `recon_capture_network` → cross-check endpoints against docs; mismatches become UNVERIFIED findings |
 | Local repo, full source | `recon_analyze_source` (or `recon_start` with repo path) | `recon_get_graph` → `recon_generate_spec`; source findings are SOURCE_VERIFIED |
 | Site + repo (both available) | `recon_start` on URL, then `recon_analyze_source` in the same session | `recon_get_graph` fuses both; contradictions resolve toward SOURCE_VERIFIED |
+| Public API (OpenAPI/Swagger doc) | `recon_start` with the spec URL | 20/20 paths inventoried on the petstore reference; `recon_export_report` (openapi) emits a rebuildable spec |
+| APK / native binary / JS bundle | `recon_start` with the file path (or `recon_analyze_artifact`) | Structural intel + string-mined URLs; REA deep-dive fused automatically when a provider is configured; BLOCKED otherwise — never invented |
 | Native binary / APK / firmware | STOP — use REA, not OmniRecon | Feed REA's findings back as cited evidence if you continue here |
 
 If the target doesn't match any row, ask the user what it is before burning

@@ -85,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path_or_repo_url")
     p.set_defaults(func=lambda a: SRV.recon_analyze_source(a.session, a.path_or_repo_url))
 
+    p = sub.add_parser("recon-analyze-artifact", help="Analyze an APK/IPA/native binary/JS bundle.")
+    _add_session_arg(p)
+    p.add_argument("path")
+    p.set_defaults(func=lambda a: SRV.recon_analyze_artifact(a.session, a.path))
+
     p = sub.add_parser("recon-extract-assets", help="Inventory images, fonts, design tokens.")
     _add_session_arg(p)
     p.add_argument("url")

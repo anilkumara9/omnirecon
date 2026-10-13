@@ -816,6 +816,43 @@ def recon_extract_assets(session_id: str, url: str) -> dict:
 
 
 @mcp.tool()
+def recon_analyze_artifact(session_id: str, path: str) -> dict:
+    """Analyze a shipped artifact: APK/IPA, native binary (ELF/PE/Mach-O),
+    or JS bundle. Lightweight structural intel (format, symbols, manifest,
+    string-mined URLs) is always produced; when the REA CLI is installed
+    with a configured provider, deep decompilation results are fused into
+    the evidence ledger. Honest about what it cannot do."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not path or not path.strip():
+        return _err("path is required", "invalid_input", "")
+    path = os.path.expanduser(path.strip())
+    if not os.path.isfile(path):
+        return _err(f"file not found: {path}", "invalid_target",
+                    "Pass a local APK/IPA/binary/JS-bundle file path.")
+
+    amod, aerr = _lane("artifact_intel")
+    if aerr or not hasattr(amod, "analyze_artifact"):
+        return _err("artifact analysis is unavailable", "unavailable",
+                    "omnirecon.artifact_intel is not available in this deployment")
+    try:
+        result = amod.analyze_artifact(session_id, path)
+    except Exception as e:  # noqa: BLE001
+        return _err("artifact analysis failed", "internal", str(e)[:300])
+    try:
+        mgr.update_stage(session_id, 3)
+        mgr.checkpoint(session_id)
+    except Exception:
+        pass
+    _audit(session_id, "analyze_artifact", path)
+    return result
+
+
+@mcp.tool()
 def recon_get_graph(session_id: str) -> dict:
     """Return the route / component / workflow / API dependency graph as
     {nodes, edges}, built from the evidence ledger."""
@@ -963,20 +1000,35 @@ def recon_compare_build(session_id: str, build_url: str) -> dict:
 
 @mcp.tool()
 def recon_export_report(session_id: str, format: str = "markdown") -> dict:
-    """Export the session findings as a Markdown report or machine-readable
-    JSON. Returns {path, content}. Artifacts land in the session directory."""
+    """Export the session findings as a Markdown report, machine-readable
+    JSON, or an OpenAPI 3.1 document reconstructed from the evidence ledger.
+    Returns {path, content}. Artifacts land in the session directory."""
     mgr, err = _session_manager()
     if err:
         return err
     session, serr = _get_session(mgr, session_id)
     if serr:
         return serr
-    if format not in ("markdown", "json"):
+    if format not in ("markdown", "json", "openapi"):
         return _err(f"invalid format '{format}'", "invalid_input",
-                    "format must be 'markdown' or 'json'")
+                    "format must be 'markdown', 'json', or 'openapi'")
     try:
         if format == "json":
             path, content = REPORT.export_json(session)
+        elif format == "openapi":
+            from omnirecon import api_intel as AI
+            ledger = mgr.ledger(session_id)
+            findings = [f.to_dict() if hasattr(f, "to_dict") else dict(f)
+                        for f in ledger]
+            doc = AI.ledger_to_openapi(
+                findings,
+                title=f"Reconstructed API — {session.get('target', session_id)}")
+            content = AI.dump_openapi_yaml(doc)
+            sdir = os.path.join(str(SESSIONS_ROOT), session_id)
+            os.makedirs(sdir, exist_ok=True)
+            path = os.path.join(sdir, "openapi.yaml")
+            with open(path, "w") as fh:
+                fh.write(content)
         else:
             path, content = REPORT.export_markdown(session)
     except Exception as e:  # noqa: BLE001

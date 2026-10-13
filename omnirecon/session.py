@@ -43,26 +43,47 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_ARTIFACT_EXTS = (".apk", ".ipa", ".dex", ".elf", ".so", ".dll", ".exe",
+                  ".msi", ".dmg", ".bin", ".o", ".a", ".ko", ".fw", ".img")
+
+
 def _detect_target_kind(target: str) -> tuple[str, str]:
-    """Return (kind, normalized_target); kind is 'url' or 'repo'."""
+    """Return (kind, normalized_target).
+
+    kinds: 'url' (web platform), 'api_spec' (OpenAPI/Swagger document),
+    'repo' (local dir or git URL), 'artifact' (APK/IPA/native binary file).
+    """
     t = (target or "").strip()
     if not t:
         raise ReconError("target must not be empty", code="invalid_target")
+    # OpenAPI / Swagger document URL → API pipeline
+    if re.match(r"^https?://", t, re.IGNORECASE) and re.search(
+            r"(openapi|swagger)[.\-_].*\.json$|\.ya?ml$|/openapi\.json$|/swagger\.json$",
+            t, re.IGNORECASE):
+        return "api_spec", t
     if re.match(r"^https?://", t, re.IGNORECASE):
         return "url", t
     expanded = os.path.expanduser(t)
     if os.path.isdir(expanded):
         return "repo", os.path.abspath(expanded)
+    if os.path.isfile(expanded):
+        if expanded.lower().endswith(_ARTIFACT_EXTS):
+            return "artifact", os.path.abspath(expanded)
+        # Any other file → treat as a single-file artifact target anyway;
+        # the analyzer reports its type honestly.
+        return "artifact", os.path.abspath(expanded)
     if t.endswith(".git") or re.match(r"^[\w.\-]+@[\w.\-]+:", t):
         return "repo", t  # remote git URL — analyze_codebase clones it
     if t.startswith(("/", ".", "~")):
         raise ReconError(f"local path does not exist: {t}", code="invalid_target",
-                         hint="Pass an existing directory or an http(s) URL.")
+                         hint="Pass an http(s) URL, a local directory, a git URL, "
+                              "or a binary/APK file path.")
     # bare domain → treat as URL
     if re.match(r"^[\w.\-]+(\.[\w.\-]+)+(:\d+)?(/.*)?$", t):
         return "url", "https://" + t
     raise ReconError(f"could not interpret target {t!r}", code="invalid_target",
-                     hint="Pass an http(s) URL, a local directory, or a git URL.")
+                     hint="Pass an http(s) URL, an OpenAPI document URL, a local "
+                          "directory, a git URL, or a binary/APK file path.")
 
 
 class SessionManager:
@@ -139,6 +160,12 @@ class SessionManager:
         try:
             if kind == "url":
                 self._rapid_url(sid, norm_target, ledger, rapid, session)
+            elif kind == "repo":
+                self._rapid_repo(sid, norm_target, ledger, rapid, session)
+            elif kind == "api_spec":
+                self._rapid_api_spec(sid, norm_target, ledger, rapid, session)
+            elif kind == "artifact":
+                self._rapid_artifact(sid, norm_target, ledger, rapid, session)
             else:
                 self._rapid_repo(sid, norm_target, ledger, rapid, session)
             session["stage"] = 2
@@ -235,6 +262,69 @@ class SessionManager:
                     "limitations": "Cert exists ≠ host is live or in scope.",
                 })
             session["progress"]["endpoints_hint"] = rapid["subdomains_found"]
+
+    def _rapid_api_spec(self, sid: str, target: str, ledger: EvidenceLedger,
+                        rapid: dict, session: dict) -> None:
+        """Rapid recon for an OpenAPI/Swagger document URL."""
+        from omnirecon import api_intel as AI
+        info = AI.analyze_api_spec(target)
+        if info.get("error"):
+            ledger.add({
+                "type": "note", "title": "API spec fetch failed",
+                "detail": info["error"][:500],
+                "classification": "BLOCKED", "confidence": 1.0,
+                "confidence_why": "The spec document could not be retrieved.",
+                "sources": [target],
+                "limitations": "No API surface could be inventoried.",
+            })
+            rapid["error"] = info["error"][:300]
+            return
+        rapid["api_title"] = info.get("title")
+        rapid["api_version"] = info.get("version")
+        rapid["paths_found"] = info.get("paths_found")
+        rapid["servers"] = info.get("servers", [])[:5]
+        ledger.add({
+            "type": "tech",
+            "title": f"API: {info.get('title') or target} "
+                     f"({info.get('paths_found', 0)} paths)",
+            "detail": f"OpenAPI {info.get('openapi_version')}; "
+                      f"{info.get('paths_found')} paths, "
+                      f"{info.get('schemas_found')} schemas; "
+                      f"servers: {', '.join(info.get('servers', [])[:3])}",
+            "classification": "SOURCE_VERIFIED", "confidence": 0.95,
+            "confidence_why": "Parsed directly from the published OpenAPI document.",
+            "sources": [target],
+            "limitations": "The spec may be stale relative to the live API.",
+        })
+        for p in info.get("paths", [])[:150]:
+            ledger.add({
+                "type": "endpoint", "title": f"Endpoint {p['method']} {p['path']}",
+                "detail": (p.get("summary") or "")[:300] +
+                          (" [auth required]" if p.get("auth_required") else ""),
+                "classification": "SOURCE_VERIFIED", "confidence": 0.95,
+                "confidence_why": "Declared in the OpenAPI document.",
+                "sources": [target], "endpoint": f"{p['method']} {p['path']}",
+            })
+
+    def _rapid_artifact(self, sid: str, target: str, ledger: EvidenceLedger,
+                        rapid: dict, session: dict) -> None:
+        """Rapid recon for a shipped artifact (APK/binary/JS bundle)."""
+        from omnirecon import artifact_intel as AR
+        if not os.path.isfile(target):
+            ledger.add({
+                "type": "note", "title": "Artifact not found",
+                "detail": f"No file at {target}",
+                "classification": "BLOCKED", "confidence": 1.0,
+                "confidence_why": "The path does not exist.",
+                "sources": [target], "limitations": "Nothing was analyzed.",
+            })
+            rapid["error"] = "file not found"
+            return
+        info = AR.analyze_artifact(sid, target)
+        rapid["artifact_kind"] = info.get("kind")
+        rapid["artifact_format"] = info.get("format")
+        rapid["size_bytes"] = info.get("size_bytes")
+        session["progress"]["reachable"] = True
 
     def _rapid_repo(self, sid: str, target: str, ledger: EvidenceLedger,
                     rapid: dict, session: dict) -> None:

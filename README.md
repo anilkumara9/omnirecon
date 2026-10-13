@@ -19,7 +19,7 @@ other MCP-compatible agent or IDE.
 
 - [How it works](#how-it-works)
 - [Why it's different](#why-its-different)
-- [The 14 tools](#the-14-tools)
+- [The 15 tools](#the-15-tools)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
 - [Agent workflow example](#agent-workflow-example)
@@ -59,30 +59,34 @@ long crawls in the background, or cancel (`recon_cancel`).
 
 Inspired by [REA](https://github.com/morluto/rea) (`morluto/rea`) — its
 honesty-first evidence model, secret redaction, and CLI/MCP parity are adopted
-here. Where REA is the authority on *shipped artifacts* (binaries, APKs,
-firmware — deliberately passive on the web), OmniRecon *drives*: it autonomously
+here. Where REA is the authority on *deep binary decompilation* (Ghidra/Hopper/
+IDA-backed, deliberately passive on the web), OmniRecon *drives*: it autonomously
 crawls, interacts with, and instruments **live web platforms**, then writes the
-blueprint to rebuild them. The bundled skill doc routes binary/APK targets to
-REA and web/codebase targets here — they complement each other. Full analysis in
+blueprint to rebuild them. Since v1.31 it is a **universal front door**: web
+URLs, OpenAPI documents, repos, and shipped artifacts (APK/IPA/binaries/JS
+bundles) all enter through `recon_start` and are routed to the right engine —
+with a live REA bridge fusing deep decompilation results into the same evidence
+ledger when REA is installed with a configured provider. Full analysis in
 [`REA_INSPECTION.md`](REA_INSPECTION.md).
 
-## The 14 tools
+## The 15 tools
 
 | Tool | What it does |
 |---|---|
-| `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Returns `session_id`. |
+| `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Targets: web URL, OpenAPI document URL, repo dir/git URL, APK/IPA/binary/JS-bundle file. Returns `session_id`. |
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
 | `recon_inspect_page` | Rendered DOM, controls, forms, a11y data, 3-viewport screenshots, console errors. |
 | `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. |
 | `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. |
 | `recon_analyze_source` | AST route extraction, components, state management, migrations, auth files, env-var names. |
+| `recon_analyze_artifact` | APK/IPA/native-binary/JS-bundle intel: format, symbols, manifest, string-mined URLs; REA deep-dive when available. |
 | `recon_extract_assets` | Image/font/icon inventory + design tokens. |
 | `recon_get_graph` | Route/component/endpoint dependency graph. |
 | `recon_get_evidence` | Query the evidence ledger (filter by classification/type). |
 | `recon_generate_spec` | 15-section reconstruction blueprint from the ledger. |
 | `recon_compare_build` | Diff a rebuild URL against the reference (route coverage, endpoint overlap). |
-| `recon_export_report` | Markdown/JSON report of the whole session. |
+| `recon_export_report` | Markdown/JSON report — or an **OpenAPI 3.1 document** reconstructed from the ledger, every path tagged with its evidence classification. |
 | `recon_cancel` | Cancel a session and its background jobs. |
 
 Every tool degrades honestly: on failure you get
@@ -133,7 +137,7 @@ Register a stdio MCP server with:
 
 ### No MCP support? Use the CLI
 
-All 14 tools are mirrored as CLI commands running the same code:
+All 15 tools are mirrored as CLI commands running the same code:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -223,7 +227,7 @@ skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-cli.py                argparse CLI mirroring all 14 MCP tools
+cli.py                argparse CLI mirroring all 15 MCP tools
 ARCHITECTURE.md       module map and design decisions
 REA_INSPECTION.md     REA teardown and the evidence-based comparison
 FINAL_REPORT_2026-10-12.md  build report
