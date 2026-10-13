@@ -57,8 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_session_arg(p)
     p.add_argument("--max-pages", type=int, default=40)
     p.add_argument("--max-depth", type=int, default=3)
+    p.add_argument("--background", action="store_true",
+                   help="run the crawl as a background job; poll with recon-status")
     p.set_defaults(func=lambda a: SRV.recon_discover_routes(
-        a.session, a.max_pages, a.max_depth))
+        a.session, a.max_pages, a.max_depth, a.background))
 
     p = sub.add_parser("recon-inspect-page", help="Deep-inspect one page (DOM, controls, screenshots).")
     _add_session_arg(p)
@@ -127,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=lambda a: SRV.recon_get_evidence(
         a.session, a.finding_id, a.type, a.classification, a.query))
 
-    p = sub.add_parser("recon-generate-spec", help="Generate the 14-section reconstruction blueprint.")
+    p = sub.add_parser("recon-generate-spec", help="Generate the 15-section reconstruction blueprint.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_generate_spec(a.session))
 
@@ -138,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("recon-export-report", help="Export Markdown or JSON report.")
     _add_session_arg(p)
-    p.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    p.add_argument("--format", choices=("markdown", "json", "openapi"), default="markdown")
     p.add_argument("--out", default="",
                    help="also write the report content to this file")
     def _export(a):

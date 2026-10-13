@@ -265,7 +265,7 @@ scripts, CI, or agents without MCP:
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
 .venv/bin/python -m omnirecon.cli recon-discover-routes <session-id> https://example.com --max-pages 40
 .venv/bin/python -m omnirecon.cli recon-generate-spec <session-id>
-.venv/bin/python -m omnirecon.cli --help   # all 18 commands
+.venv/bin/python -m omnirecon.cli --help   # all 19 commands
 ```
 
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
@@ -343,7 +343,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | example.com | First report in ~3s |
 
-106/106 tests green (`pytest tests/` + browser-engine suite). Raw benchmark data
+139 tests green (`pytest tests/` + browser-engine suite). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
@@ -360,14 +360,14 @@ in [`benchmarks/results/`](benchmarks/results/).
 ## Project layout
 
 ```
-omnirecon/            the 13-module package (server, evidence, session,
+omnirecon/            the 20-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
 tests/                pytest suite + browser-engine runner (106 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-cli.py                argparse CLI mirroring all 18 MCP tools
+cli.py                argparse CLI mirroring all 19 MCP tools
 ARCHITECTURE.md       module map and design decisions
 REA_INSPECTION.md     REA teardown and the evidence-based comparison
 FINAL_REPORT_2026-10-12.md  build report

@@ -402,7 +402,7 @@ def _minimal_graph(findings: list[dict]) -> dict:
 
 @mcp.tool()
 def recon_start(target: str, mode: str = "fast", budget_json: str = "{}") -> dict:
-    """Start a reverse-engineering session for a URL or local repo path.
+    """Start a reverse-engineering session for any target kind: web URL, OpenAPI/Swagger document URL, local repo path or git URL, or a shipped artifact file (APK/IPA/native binary/JS bundle/.asar).
     Runs Stage 1 (target validation) + Stage 2 (rapid recon) synchronously and
     returns {session_id, rapid_report}. mode is 'fast' or 'thorough'.
     budget_json is an optional JSON object, e.g. {"max_pages": 40}."""
@@ -1134,7 +1134,7 @@ def recon_get_evidence(session_id: str, finding_id: str = "", type: str = "",
 
 @mcp.tool()
 def recon_generate_spec(session_id: str) -> dict:
-    """Generate the 14-section reconstruction blueprint from the evidence
+    """Generate the 15-section reconstruction blueprint from the evidence
     ledger + graph. Saved to spec.json. Every claim carries finding_ids;
     unevidenced areas are marked UNVERIFIED/BLOCKED, never invented."""
     mgr, err = _session_manager()
