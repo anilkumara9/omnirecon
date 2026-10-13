@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 920" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#8b95a9"/>
+    </marker>
+  </defs>
+
+  <!-- Target -->
+  <rect x="150" y="10" width="400" height="64" rx="12" fill="#1e3a5f" stroke="#6ea8fe" stroke-width="2"/>
+  <text x="350" y="36" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="700">🎯 Target</text>
+  <text x="350" y="58" text-anchor="middle" fill="#bcd2f5" font-size="13">URL · API doc · repo · APK / binary</text>
+
+  <line x1="350" y1="74" x2="350" y2="104" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- recon_start -->
+  <rect x="150" y="104" width="400" height="64" rx="12" fill="#3b2d6e" stroke="#a78bfa" stroke-width="2"/>
+  <text x="350" y="130" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="700">⚡ recon_start</text>
+  <text x="350" y="152" text-anchor="middle" fill="#d6c9ff" font-size="13">rapid recon in seconds</text>
+
+  <line x1="350" y1="168" x2="350" y2="198" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- 4 engines, 2x2 grid -->
+  <rect x="20" y="198" width="320" height="76" rx="12" fill="#14324a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="180" y="226" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">🕷️ Route crawl</text>
+  <text x="180" y="248" text-anchor="middle" fill="#bfe6ff" font-size="12">+ JS bundle API extraction</text>
+
+  <rect x="360" y="198" width="320" height="76" rx="12" fill="#14324a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="520" y="226" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">🔍 Page inspect</text>
+  <text x="520" y="248" text-anchor="middle" fill="#bfe6ff" font-size="12">DOM · controls · screenshots</text>
+
+  <rect x="20" y="286" width="320" height="76" rx="12" fill="#14324a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="180" y="314" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">📡 Network capture</text>
+  <text x="180" y="336" text-anchor="middle" fill="#bfe6ff" font-size="12">XHR / fetch / WebSocket</text>
+
+  <rect x="360" y="286" width="320" height="76" rx="12" fill="#14324a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="520" y="314" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">📱 Artifact &amp; source intel</text>
+  <text x="520" y="336" text-anchor="middle" fill="#bfe6ff" font-size="12">APK · Electron · codebase</text>
+
+  <!-- arrows from engines to ledger -->
+  <line x1="180" y1="362" x2="300" y2="402" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="520" y1="362" x2="400" y2="402" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Evidence ledger -->
+  <rect x="110" y="402" width="480" height="84" rx="12" fill="#3d2b00" stroke="#fbbf24" stroke-width="2"/>
+  <text x="350" y="430" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="700">📒 Evidence ledger</text>
+  <text x="350" y="452" text-anchor="middle" fill="#ffe9b8" font-size="12">OBSERVED · SOURCE_VERIFIED · INFERRED</text>
+  <text x="350" y="470" text-anchor="middle" fill="#ffe9b8" font-size="12">UNVERIFIED · BLOCKED</text>
+
+  <line x1="350" y1="486" x2="350" y2="516" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Generate spec -->
+  <rect x="150" y="516" width="400" height="64" rx="12" fill="#0f3d2e" stroke="#34d399" stroke-width="2"/>
+  <text x="350" y="542" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="700">📐 recon_generate_spec</text>
+  <text x="350" y="564" text-anchor="middle" fill="#b8f5dd" font-size="13">15-section rebuild blueprint</text>
+
+  <line x1="350" y1="580" x2="350" y2="610" stroke="#8b95a9" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Export + Compare side by side -->
+  <rect x="20" y="610" width="320" height="76" rx="12" fill="#0f3d2e" stroke="#34d399" stroke-width="1.5"/>
+  <text x="180" y="638" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">📄 recon_export_report</text>
+  <text x="180" y="660" text-anchor="middle" fill="#b8f5dd" font-size="12">markdown · JSON · OpenAPI</text>
+
+  <rect x="360" y="610" width="320" height="76" rx="12" fill="#0f3d2e" stroke="#34d399" stroke-width="1.5"/>
+  <text x="520" y="638" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">🔁 recon_compare_build</text>
+  <text x="520" y="660" text-anchor="middle" fill="#b8f5dd" font-size="12">verify rebuild vs reference</text>
+
+  <!-- Session note -->
+  <rect x="110" y="716" width="480" height="60" rx="12" fill="#141a2b" stroke="#3a4560" stroke-width="1.5"/>
+  <text x="350" y="740" text-anchor="middle" fill="#cdd6ea" font-size="13">Sessions persist on disk — pause, resume,</text>
+  <text x="350" y="760" text-anchor="middle" fill="#cdd6ea" font-size="13">background crawls, or cancel anytime.</text>
+
+  <!-- Legend -->
+  <text x="20" y="810" fill="#8b95a9" font-size="12">Legend:</text>
+  <rect x="80" y="798" width="18" height="18" rx="4" fill="#1e3a5f" stroke="#6ea8fe"/>
+  <text x="104" y="812" fill="#cdd6ea" font-size="12">entry</text>
+  <rect x="150" y="798" width="18" height="18" rx="4" fill="#3b2d6e" stroke="#a78bfa"/>
+  <text x="174" y="812" fill="#cdd6ea" font-size="12">rapid</text>
+  <rect x="220" y="798" width="18" height="18" rx="4" fill="#14324a" stroke="#38bdf8"/>
+  <text x="244" y="812" fill="#cdd6ea" font-size="12">deep engines</text>
+  <rect x="340" y="798" width="18" height="18" rx="4" fill="#3d2b00" stroke="#fbbf24"/>
+  <text x="364" y="812" fill="#cdd6ea" font-size="12">evidence</text>
+  <rect x="440" y="798" width="18" height="18" rx="4" fill="#0f3d2e" stroke="#34d399"/>
+  <text x="464" y="812" fill="#cdd6ea" font-size="12">outputs</text>
+
+  <text x="350" y="860" text-anchor="middle" fill="#5b6579" font-size="12">Every claim in the blueprint cites the finding ID that proves it.</text>
+  <text x="350" y="882" text-anchor="middle" fill="#5b6579" font-size="12">Nothing is ever invented.</text>
+</svg>
