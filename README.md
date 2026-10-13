@@ -28,12 +28,13 @@ other MCP-compatible agent or IDE.
 ./install.sh   # one command: venv + deps + Chromium + verify
 ```
 
-```jsonc
-// Claude Code — then ask your agent to reverse-engineer a target
-{ "mcpServers": { "omnirecon": {
-  "command": "/path/to/omnirecon/.venv/bin/python",
-  "args": ["-m", "omnirecon.server"] } } }
+```bash
+# then connect your agent with zero path mistakes:
+.venv/bin/python -m omnirecon.cli setup claude-code   # or cursor, codex, windsurf, zed
 ```
+
+Then ask your agent: *"Reverse-engineer https://example.com — explain how it
+works and give me a rebuild plan."*
 
 ---
 
@@ -229,10 +230,18 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 </details>
 
-Run the server (stdio transport):
+Run the server (stdio transport — your agent connects to this, not you directly):
 
 ```bash
 .venv/bin/python omnirecon/server.py
+```
+
+It waits silently for MCP input; that's normal. To verify everything works
+from your terminal instead, use the CLI (same 21 tools):
+
+```bash
+.venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
+# → {"session_id": "...", ...} means your install is healthy
 ```
 
 ## Connecting your agent
@@ -249,6 +258,18 @@ Restart the agent/IDE after registering.
 
 This auto-detects your venv Python and `server.py` and prints the exact config
 (or the exact command) for your client — no `/path/to/...` to get wrong.
+
+Example output for Claude Code — just run the command it gives you:
+
+```json
+{
+  "action": "run",
+  "command": ["claude", "mcp", "add", "omnirecon", "--",
+              "/home/you/omnirecon/.venv/bin/python",
+              "/home/you/omnirecon/omnirecon/server.py"],
+  "note": "Run this command to register OmniRecon with Claude Code."
+}
+```
 
 <details>
 <summary>Manual config (if you prefer each step explicit)</summary>
@@ -470,6 +491,13 @@ REA_INSPECTION.md     REA teardown and the evidence-based comparison
 
 ## Troubleshooting
 
+- **Agent doesn't see the tools** — the usual causes, in order: (1) you used
+  system Python instead of `.venv/bin/python` — re-run
+  `.venv/bin/python -m omnirecon.cli setup <client>` and use its exact output;
+  (2) you forgot to restart the agent/IDE after registering; (3) the JSON has
+  a typo — validate it with `python -m json.tool <config-file>`.
+- **`setup` says python not found** — run `./install.sh` (or `install.bat`)
+  first; the venv must exist before the config can point at it.
 - **`Executable doesn't exist … ms-playwright`** — run
   `.venv/bin/playwright install chromium`.
 - **Browser tunnel/cert errors behind a proxy** — export `HTTPS_PROXY`/
