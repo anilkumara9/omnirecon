@@ -4,7 +4,17 @@
   <img src="assets/mascot.webp" alt="OmniRecon mascot — the reverse-engineering bot" width="320" />
 </p>
 
-**Give any AI coding agent the power to reverse-engineer any software — accurately, with evidence.**
+<p align="center">
+  <a href="https://github.com/anilkumara9/omnirecon/stargazers"><img src="https://img.shields.io/github/stars/anilkumara9/omnirecon?style=social" alt="GitHub stars" /></a>
+  <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
+  <img src="https://img.shields.io/badge/tools-21-green" alt="21 tools" />
+</p>
+
+<p align="center"><b>Give any AI coding agent X-ray vision into any software.</b></p>
+
+<p align="center">Point Claude Code, Codex, or Cursor at a URL, an API, a codebase, or a shipped<br/>binary — get back a <b>reconstruction blueprint</b> where every claim traces to evidence.</p>
 
 OmniRecon is a session-based, evidence-driven MCP server. Point it at a URL, an
 API doc, a codebase, or a shipped binary/APK and it runs an autonomous recon
@@ -18,12 +28,28 @@ Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://developers.openai.com/codex), Cursor, Windsurf, Zed, and any
 other MCP-compatible agent or IDE.
 
+```bash
+./install.sh   # one command: venv + deps + Chromium + verify
+```
+
+```jsonc
+// Claude Code — then just ask your agent to reverse-engineer anything
+{ "mcpServers": { "omnirecon": {
+  "command": "/path/to/omnirecon/.venv/bin/python",
+  "args": ["-m", "omnirecon.server"] } } }
+```
+
+> *"Reverse-engineer stripe.com's checkout flow and give me a rebuild plan."*
+> Your agent now has 21 tools, an evidence ledger that never invents data, and
+> a 15-section blueprint generator. That's the whole pitch.
+
 ---
 
 ## Table of contents
 
 - [How it works](#how-it-works)
 - [Why it's different](#why-its-different)
+- [See it in action](#see-it-in-action)
 - [The 21 tools](#the-21-tools)
 - [Installation](#installation)
 - [Connecting your agent](#connecting-your-agent)
@@ -73,6 +99,48 @@ bundles) all enter through `recon_start` and are routed to the right engine —
 with a live REA bridge fusing deep decompilation results into the same evidence
 ledger when REA is installed with a configured provider. Full analysis in
 [`REA_INSPECTION.md`](REA_INSPECTION.md).
+
+| | OmniRecon | REA | Burp Suite + DevTools |
+|---|---|---|---|
+| Built for AI coding agents | ✅ 21 MCP tools + skill doc | ❌ CLI for humans | ❌ human-driven |
+| Autonomous web driving (crawl, click, capture) | ✅ | ❌ deliberately passive | ❌ manual |
+| Evidence ledger (nothing invented, ever) | ✅ 5 classifications | ✅ | ❌ |
+| Authenticated recon (behind login) | ✅ | ❌ | ✅ manual |
+| APK manifest + DEX code analysis | ✅ | ✅ (via providers) | ❌ |
+| Electron app introspection | ✅ | ❌ | ❌ |
+| Deep binary decompilation (Ghidra/IDA) | via REA bridge | ✅ | ❌ |
+| Rebuild blueprint + verify loop | ✅ | ❌ | ❌ |
+| One-command install | ✅ `./install.sh` | ✅ `npm i` | ❌ commercial |
+
+## See it in action
+
+A 60-second session against a live target (via the CLI — agents get the same
+through MCP):
+
+```bash
+$ .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
+{
+  "session_id": "a1b2c3d4",
+  "target": "https://example.com",
+  "rapid_report": {
+    "tech": ["nginx"],
+    "title": "Example Domain",
+    "findings_seeded": 8
+  }
+}
+
+$ .venv/bin/python -m omnirecon.cli recon-discover-routes a1b2c3d4 --max-pages 20
+{ "routes_found": 12, "api_endpoints": 5, "note": "JS bundles mined for endpoints" }
+
+$ .venv/bin/python -m omnirecon.cli recon-generate-spec a1b2c3d4
+{ "sections": 15, "manifest": "sessions/a1b2c3d4/tasks.json",
+  "note": "every claim cites the finding ID that proves it" }
+```
+
+Or hand the whole thing to your agent: *"Reverse-engineer this platform and
+give me a rebuild plan."* It drives the 21 tools, consults the evidence
+ledger, and returns the blueprint. Try it on your own stack — that's the demo
+that converts skeptics.
 
 ## The 21 tools
 
