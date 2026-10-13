@@ -128,16 +128,17 @@ def test_redact_unit():
 
 def test_network_capture_redacted():
     pid = page_id_for(NET_URL)
-    entries = B.network_capture(pid, duration_ms=5000)
-    assert isinstance(entries, list) and entries, "no requests captured"
+    cap = B.network_capture(pid, duration_ms=5000)
+    assert isinstance(cap, dict) and cap.get("requests"), "no requests captured"
+    entries = cap["requests"]
     blob = json.dumps(entries)
     assert "TOPSECRET123" not in blob, f"api_key leaked: {blob[:400]}"
     assert "foo=1" in blob, "benign param lost"
     ex = [e for e in entries if "example.com" in e["url"]]
     assert ex, "fetch to example.com not captured"
     assert ex[0]["method"] == "GET"
-    assert set(ex[0]) == {"method", "url", "status", "type", "ms",
-                          "initiator"}, set(ex[0])
+    assert {"method", "url", "status", "type", "ms",
+            "initiator"} <= set(ex[0]), set(ex[0])
 
 
 def test_network_initiator_stack():
@@ -160,9 +161,10 @@ def test_network_initiator_stack():
     t.start()
     try:
         pid = page_id_for(f"http://127.0.0.1:{port}/")
-        entries = B.network_capture(pid, duration_ms=5000)
+        cap = B.network_capture(pid, duration_ms=5000)
     finally:
         srv.shutdown()
+    entries = cap["requests"]
     api = [e for e in entries if "/api/widgets" in e["url"]]
     assert api, "fetch to /api/widgets not captured"
     init = api[0]["initiator"]
@@ -348,6 +350,16 @@ def test_sync_wrapper_from_async_context():
             await loop.run_in_executor(None, b2.shutdown)
 
     asyncio.run(main())
+
+
+def setup_module(module):
+    """pytest entry point: launch the shared browser (mirrors main())."""
+    use_relay = os.environ.get("HTTPS_PROXY", "").startswith("http://127.0.0.1:8899")
+    B.launch(headless=True, ignore_https_errors=use_relay)
+
+
+def teardown_module(module):
+    B.shutdown()
 
 
 def main():

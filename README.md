@@ -410,13 +410,16 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | example.com | First report in ~3s |
 
-139 tests green (`pytest tests/` + browser-engine suite). Raw benchmark data
+158 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
 
-- Read-only recon: no credential use, no logins, no form submissions that change
-  state, no destructive actions — ever.
+- Read-only recon by default: no form submissions that change state, no
+  destructive actions — ever. Authenticated recon (`recon_authenticate`) only
+  ever uses credentials the operator explicitly provides, never harvests or
+  stores them; session cookies are kept `0600` and cleared on
+  `recon_deauthenticate`.
 - No CAPTCHA / paywall / bot-protection bypass: blocked areas become `BLOCKED`
   findings, not workarounds.
 - Secrets (API keys, tokens, passwords) are redacted before storage; `.env`
@@ -429,7 +432,7 @@ in [`benchmarks/results/`](benchmarks/results/).
 ```
 omnirecon/            the 20-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
-tests/                pytest suite + browser-engine runner (106 tests)
+tests/                pytest suite (158 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)

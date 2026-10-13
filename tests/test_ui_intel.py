@@ -32,24 +32,36 @@ body { font-family: Inter, sans-serif; background: #0f172a; color: #e2e8f0; }
 DATA_URL = "data:text/html," + urllib.parse.quote(HTML)
 
 BROWSER = None
+_LOOP = None
 
 
-def setup():
+def _loop():
+    """Module-owned event loop (isolated from other test modules)."""
+    global _LOOP
+    import asyncio
+    if _LOOP is None:
+        _LOOP = asyncio.new_event_loop()
+        asyncio.set_event_loop(_LOOP)
+    return _LOOP
+
+
+def setup_module(module):
     global BROWSER
-    import asyncio
     BROWSER = AsyncOwnedBrowser()
-    asyncio.get_event_loop().run_until_complete(BROWSER.launch(headless=True))
+    _loop().run_until_complete(BROWSER.launch(headless=True))
 
 
-def teardown():
-    import asyncio
+def teardown_module(module):
+    global _LOOP
     if BROWSER:
-        asyncio.get_event_loop().run_until_complete(BROWSER.close())
+        _loop().run_until_complete(BROWSER.close())
+    if _LOOP is not None:
+        _LOOP.close()
+        _LOOP = None
 
 
 def _run(coro):
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return _loop().run_until_complete(coro)
 
 
 def test_ui_tokens_extracted():
