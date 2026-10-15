@@ -17,7 +17,7 @@
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
 
-<p align="center"><b>v2.2: one tool call reverse-engineers anything.</b><br/>
+<p align="center"><b>v2.2.1: one tool call reverse-engineers anything.</b><br/>
 <code>recon_auto_pilot("https://target.com")</code> runs the full pipeline —
 rapid recon, route discovery, deep browser inspection, network capture, UI
 analysis, edge-state mocking, <b>JS signature tracing</b>, endpoint probing — and returns a build-ready
@@ -36,11 +36,6 @@ other MCP-compatible agent or IDE.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh | bash -s -- --client auto
 # one command: clone + venv + deps + Chromium + agent config. Then restart your agent.
-```
-
-```bash
-# then connect your agent (writes the config for you, no manual JSON):
-.venv/bin/python -m omnirecon.cli setup auto   # or claude-code, codex, cursor, windsurf, zed
 ```
 
 Then ask your agent: *"Reverse-engineer https://example.com — explain how it
@@ -102,7 +97,7 @@ the appropriate engine.
 | Electron app introspection | ✅ | ❌ | ❌ |
 | Deep binary decompilation (Ghidra/IDA) | via REA bridge | ✅ | ❌ |
 | Rebuild blueprint + verify loop | ✅ | ❌ | ❌ |
-| One-command install | ✅ `./install.sh` | ✅ `npm i` | ❌ commercial |
+| One-command install (configures your agent too) | ✅ `curl … \| bash -s -- --client auto` | ✅ `npm i` (then configure tools yourself) | ❌ commercial |
 
 ## See it in action
 
@@ -488,7 +483,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | Demo SaaS teardown | 36 findings, 5 pages, 5 API endpoints, design tokens, 3-viewport screenshots — [full session committed](examples/teardown-acme-metrics/) |
 
-167 tests green (`pytest tests/`). Raw benchmark data
+185 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
@@ -508,7 +503,7 @@ in [`benchmarks/results/`](benchmarks/results/).
 ## Project layout
 
 ```
-omnirecon/            the 22-module package (server, evidence, session,
+omnirecon/            the 23-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
 tests/                pytest suite (185 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
