@@ -17,11 +17,12 @@
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
 
-<p align="center"><b>NEW in v2.0: one tool call reverse-engineers anything.</b><br/>
+<p align="center"><b>v2.1: one tool call reverse-engineers anything.</b><br/>
 <code>recon_auto_pilot("https://target.com")</code> runs the full pipeline —
 rapid recon, route discovery, deep browser inspection, network capture, UI
-analysis, endpoint probing — and returns a build-ready blueprint. No
-orchestration needed.</p>
+analysis, edge-state mocking, endpoint probing — and returns a build-ready
+blueprint with <code>unknowns</code> and <code>limitations</code> on every
+response. No orchestration needed.</p>
 
 <p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>it runs an autonomous recon pipeline (rapid fingerprinting, a real headless
 browser that crawls routes, clicks through workflows and captures live network
@@ -91,8 +92,12 @@ the appropriate engine.
 
 | | OmniRecon | REA | Burp Suite + DevTools |
 |---|---|---|---|
-| Built for AI coding agents | ✅ 21 MCP tools + skill doc | ❌ CLI for humans | ❌ human-driven |
+| Built for AI coding agents | ✅ 23 MCP tools + skill doc | ❌ CLI for humans | ❌ human-driven |
+| One-call full pipeline | ✅ `recon_auto_pilot` | ❌ | ❌ |
 | Autonomous web driving (crawl, click, capture) | ✅ | ❌ deliberately passive | ❌ manual |
+| Edge-state UI (mock API failures, capture degraded UI) | ✅ | ❌ | ❌ manual |
+| Output contract (unknowns + limitations on every response) | ✅ | ✅ | ❌ |
+| Response budgeting (no context thrashing) | ✅ | ❌ | ❌ |
 | Evidence ledger (nothing invented, ever) | ✅ 5 classifications | ✅ | ❌ |
 | Authenticated recon (behind login) | ✅ | ❌ | ✅ manual |
 | APK manifest + DEX code analysis | ✅ | ✅ (via providers) | ❌ |
@@ -115,10 +120,15 @@ $ .venv/bin/python -m omnirecon.cli auto-pilot https://example.com --depth quick
                 "recon_capture_network", "recon_analyze_ui",
                 "recon_generate_spec"],
   "evidence": {"total": 42, "by_classification": {"OBSERVED": 38}},
+  "unknowns": [],
+  "limitations": ["browser tools may fail on bot-protected targets"],
   "manifest": {"build_tasks": 8, "research_tasks": 3},
   "next_steps": "Build 8 tasks in manifest['build_tasks'] order..."
 }
 ```
+
+Every response carries `unknowns` (what wasn't resolved) and `limitations`
+(what can't be guaranteed) — the agent always knows what it doesn't know.
 
 Or hand it to your agent: *"Reverse-engineer this platform and give me a
 rebuild plan."* It calls `recon_auto_pilot` once and gets the blueprint.
@@ -235,7 +245,7 @@ Run the server (stdio transport — your agent connects to this, not you directl
 ```
 
 It waits silently for MCP input; that's normal. To verify everything works
-from your terminal instead, use the CLI (same 22 tools):
+from your terminal instead, use the CLI (same 23 tools):
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -310,7 +320,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 22 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 23 tools.
 
 ### Cursor
 
@@ -366,14 +376,14 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 22 tools are mirrored as CLI commands running the same code — useful for
+All 23 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
 .venv/bin/python -m omnirecon.cli recon-discover-routes <session-id> https://example.com --max-pages 40
 .venv/bin/python -m omnirecon.cli recon-generate-spec <session-id>
-.venv/bin/python -m omnirecon.cli --help   # all 21 commands
+.venv/bin/python -m omnirecon.cli --help   # all 23 commands
 ```
 
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
@@ -439,6 +449,18 @@ much to trust it:
 Findings get stable IDs (`F-0001`…), timestamps, sources, confidence scores, and
 limitations. The audit log records every consequential action.
 
+### Output contract
+
+Every tool response carries three additional fields:
+
+- `unknowns` — what the tool tried but couldn't resolve (e.g., which sub-tools
+  failed and why)
+- `limitations` — what the results can't guarantee
+- `truncated` — whether the response was cut by the budget cap
+
+The agent always knows what it doesn't know. Responses are budgeted at ~30k
+tokens to prevent context-window thrashing.
+
 ## Measured accuracy
 
 Measured 2026-10-12/13 on real targets (not estimates):
@@ -449,7 +471,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | Demo SaaS teardown | 36 findings, 5 pages, 5 API endpoints, design tokens, 3-viewport screenshots — [full session committed](examples/teardown-acme-metrics/) |
 
-163 tests green (`pytest tests/`). Raw benchmark data
+167 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
@@ -471,7 +493,7 @@ in [`benchmarks/results/`](benchmarks/results/).
 ```
 omnirecon/            the 22-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
-tests/                pytest suite (163 tests)
+tests/                pytest suite (167 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 examples/             committed teardown sessions (proof, not docs)
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
