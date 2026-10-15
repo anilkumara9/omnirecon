@@ -53,6 +53,52 @@ def _err(message: str, code: str = "internal", hint: str = "") -> dict:
     return {"error": message, "code": code, "hint": hint}
 
 
+# Output contract: every tool tells the agent what it knows, what it
+# doesn't, and what got cut. Stolen from REA's evidence-plus-unknowns,
+# fixed with budgeting (REA's #1 complaint is context thrashing).
+_MAX_RESPONSE_CHARS = 120_000  # ~30k tokens; prevents context death
+
+def _contract(result: dict, unknowns: list[str] | None = None,
+              limitations: list[str] | None = None) -> dict:
+    """Wrap a tool result with the output contract.
+
+    - unknowns: what the tool tried but couldn't resolve
+    - limitations: what the results can't guarantee
+    - truncated: whether the payload was cut by the budget
+    """
+    if not isinstance(result, dict) or "error" in result:
+        return result
+    result["unknowns"] = list(unknowns or [])
+    result["limitations"] = list(limitations or [])
+    # Budget: truncate large string fields, mark truncated
+    import json as _json
+    try:
+        size = len(_json.dumps(result, default=str))
+    except Exception:
+        size = 0
+    result["truncated"] = False
+    if size > _MAX_RESPONSE_CHARS:
+        # Truncate the largest list fields first
+        for key in ("spec", "manifest", "findings", "sections"):
+            if key in result and isinstance(result[key], (list, dict)):
+                original = result[key]
+                if isinstance(original, list) and len(original) > 20:
+                    result[key] = original[:20]
+                    result["truncated"] = True
+                    result["unknowns"].append(
+                        f"{key} truncated to 20 items by response budget "
+                        f"({len(original)} total)")
+                    break
+                elif isinstance(original, dict) and len(original) > 10:
+                    keys = list(original.keys())[:10]
+                    result[key] = {k: original[k] for k in keys}
+                    result["truncated"] = True
+                    result["unknowns"].append(
+                        f"{key} truncated by response budget")
+                    break
+    return result
+
+
 def _lane(name: str):
     """Lazy import of a sibling lane module. Returns (module, None) or
     (None, error_dict)."""
@@ -1669,7 +1715,10 @@ def recon_auto_pilot(
                 f"Build {len(build)} tasks in manifest['build_tasks'] order. "
                 f"{len(research)} research gaps to resolve. "
                 f"Full blueprint in spec.sections.")
-        return result
+        return _contract(
+            result,
+            unknowns=[f["tool"] + ": " + f["error"] for f in failed],
+            limitations=["repo analysis is static; runtime behavior not observed"])
 
     if target_kind == "artifact":
         _safe("recon_analyze_artifact", recon_analyze_artifact, sid, target)
@@ -1699,7 +1748,11 @@ def recon_auto_pilot(
                 f"Build {len(build)} tasks in manifest['build_tasks'] order. "
                 f"{len(research)} research gaps to resolve. "
                 f"Full blueprint in spec.sections.")
-        return result
+        return _contract(
+            result,
+            unknowns=[f["tool"] + ": " + f["error"] for f in failed],
+            limitations=["binary analysis is static; method bodies not decompiled",
+                         "string-mined URLs are unconfirmed until probed"])
 
     if target_kind == "api_spec":
         # Probe against the API's servers[0], not the spec document URL.
@@ -1744,7 +1797,11 @@ def recon_auto_pilot(
                 f"Build {len(build)} tasks in manifest['build_tasks'] order. "
                 f"{len(research)} research gaps to resolve. "
                 f"Full blueprint in spec.sections.")
-        return result
+        return _contract(
+            result,
+            unknowns=[f["tool"] + ": " + f["error"] for f in failed],
+            limitations=["API contract inferred from spec document; "
+                         "behavioral probing results in manifest"])
 
     # Step 2: discover routes (url targets only)
     disc = _safe("recon_discover_routes", recon_discover_routes, sid,
@@ -1825,7 +1882,15 @@ def recon_auto_pilot(
         )
     else:
         result["error"] = "spec generation failed"
-    return result
+    return _contract(
+        result,
+        unknowns=[f["tool"] + ": " + f["error"] for f in failed],
+        limitations=[
+            "browser tools may fail on bot-protected targets; "
+            "static findings remain",
+            "UNVERIFIED findings need targeted follow-up before building",
+        ],
+    )
 
 
 if __name__ == "__main__":
