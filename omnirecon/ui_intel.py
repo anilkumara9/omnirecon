@@ -84,6 +84,77 @@ _UI_TOKENS_JS = r"""
 """
 
 
+_MOTION_JS = r"""
+(() => {
+  const libs = [];
+  if (window.gsap) libs.push('gsap');
+  if (window.Motion || document.querySelector('[data-framer-motion]')) libs.push('framer-motion');
+  if (window.lottie) libs.push('lottie');
+  const desc = (el) => {
+    let s = el.tagName.toLowerCase();
+    if (el.id) s += '#' + el.id;
+    else if (el.className && typeof el.className === 'string') {
+      const c = el.className.trim().split(/\s+/).slice(0, 2).join('.');
+      if (c) s += '.' + c;
+    }
+    return s.slice(0, 80);
+  };
+  const seen = new Set(), transitions = [], animations = [];
+  const els = document.querySelectorAll('*');
+  const cap = Math.min(els.length, 1200);
+  for (let i = 0; i < cap; i++) {
+    const el = els[i], cs = getComputedStyle(el);
+    if (cs.transitionProperty !== 'none' && cs.transitionDuration !== '0s') {
+      const k = 't:' + cs.transitionProperty + '|' + cs.transitionDuration +
+                '|' + cs.transitionTimingFunction;
+      if (!seen.has(k) && transitions.length < 25) {
+        seen.add(k);
+        transitions.push({el: desc(el), property: cs.transitionProperty,
+          duration: cs.transitionDuration, easing: cs.transitionTimingFunction,
+          delay: cs.transitionDelay});
+      }
+    }
+    if (cs.animationName && cs.animationName !== 'none') {
+      const k = 'a:' + cs.animationName + '|' + cs.animationDuration;
+      if (!seen.has(k) && animations.length < 25) {
+        seen.add(k);
+        animations.push({el: desc(el), name: cs.animationName,
+          duration: cs.animationDuration, easing: cs.animationTimingFunction,
+          delay: cs.animationDelay, iteration: cs.animationIterationCount});
+      }
+    }
+  }
+  return {transitions: transitions, animations: animations,
+          libraries: libs, elements_scanned: cap};
+})()
+"""
+
+
+_VITALS_JS = r"""
+(() => {
+  const nav = performance.getEntriesByType('navigation')[0] || {};
+  const lcp = performance.getEntriesByType('largest-contentful-paint');
+  const res = performance.getEntriesByType('resource');
+  let js = 0, css = 0, img = 0;
+  for (const r of res) {
+    const sz = r.transferSize || 0, n = (r.name || '').toLowerCase();
+    if (n.endsWith('.js')) js += sz;
+    else if (n.endsWith('.css')) css += sz;
+    else if (/\.(png|jpe?g|webp|gif|avif|svg)(\?|#|$)/.test(n)) img += sz;
+  }
+  const rnd = (v) => (v == null || isNaN(v)) ? null : Math.round(v);
+  return {
+    lcp_ms: lcp.length ? rnd(lcp[lcp.length - 1].startTime) : null,
+    dom_content_loaded_ms: rnd(nav.domContentLoadedEventEnd),
+    load_ms: rnd(nav.loadEventEnd),
+    resources: res.length,
+    js_kb: Math.round(js / 1024), css_kb: Math.round(css / 1024),
+    img_kb: Math.round(img / 1024),
+  };
+})()
+"""
+
+
 def _sessions_dir() -> str:
     return os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sessions")
@@ -202,5 +273,89 @@ async def analyze_ui(browser, page_id: int, session_id: str,
             "rendered page. The rebuild should use the same framework for "
             "visual parity.",
             "INFERRED", 0.8, "class/stylesheet pattern matching", [url]))
+
+    # --- motion catalogue (transitions, keyframe animations, libraries) ---
+    try:
+        motion = await page.evaluate(_MOTION_JS)
+    except Exception:
+        motion = {}
+    if isinstance(motion, dict):
+        trans = motion.get("transitions") or []
+        anims = motion.get("animations") or []
+        libs = motion.get("libraries") or []
+        out["motion"] = {"transitions": trans, "animations": anims,
+                         "libraries": libs}
+        if trans or anims or libs:
+            lines = []
+            for t in trans[:10]:
+                lines.append(
+                    f"transition {t.get('property')} {t.get('duration')} "
+                    f"{t.get('easing')} on {t.get('el')}")
+            for a in anims[:10]:
+                lines.append(
+                    f"@keyframes {a.get('name')} {a.get('duration')} "
+                    f"{a.get('easing')} x{a.get('iteration')} on {a.get('el')}")
+            _append(session_id, _mk(
+                "motion", f"Motion: {len(trans)} transitions, "
+                          f"{len(anims)} animations"
+                          + (f" ({', '.join(libs)})" if libs else ""),
+                "\n".join(lines)[:1500] or "no distinct motion signatures",
+                "OBSERVED", 0.9,
+                "computed transition/animation styles sampled from rendered "
+                "elements; libraries detected from window globals",
+                [url]))
+        else:
+            _append(session_id, _mk(
+                "motion", "Motion: none detected",
+                "No CSS transitions or keyframe animations found on sampled "
+                "elements; page appears static.",
+                "OBSERVED", 0.8, "computed-style sampling", [url]))
+
+    # --- dark-mode support probe ---
+    try:
+        light_bg = await page.evaluate(
+            "getComputedStyle(document.body).backgroundColor")
+        await page.emulate_media(color_scheme="dark")
+        await page.wait_for_timeout(700)
+        dark = await page.evaluate(
+            "({bg: getComputedStyle(document.body).backgroundColor, "
+            "mq: matchMedia('(prefers-color-scheme: dark)').matches})")
+        await page.emulate_media(color_scheme="light")
+        dark_bg = (dark or {}).get("bg", "")
+        supports_dark = bool(dark_bg and dark_bg != light_bg)
+        out["dark_mode"] = {"supported": supports_dark,
+                            "light_bg": light_bg, "dark_bg": dark_bg}
+        _append(session_id, _mk(
+            "tech",
+            f"Dark mode: {'supported' if supports_dark else 'not detected'}",
+            f"Body background {light_bg} (light) vs {dark_bg} (dark, "
+            f"emulated). matchMedia('(prefers-color-scheme: dark)').matches="
+            f"{(dark or {}).get('mq')}.",
+            "OBSERVED", 0.9,
+            "color-scheme emulation in the owned browser", [url]))
+    except Exception as e:
+        out["dark_mode"] = {"supported": None, "error": str(e)[:120]}
+
+    # --- web-vitals / page-weight snapshot ---
+    try:
+        vitals = await page.evaluate(_VITALS_JS)
+    except Exception:
+        vitals = {}
+    if isinstance(vitals, dict) and vitals:
+        out["vitals"] = vitals
+        lcp = vitals.get("lcp_ms")
+        _append(session_id, _mk(
+            "perf",
+            f"Performance: LCP {lcp}ms" if lcp else "Performance snapshot",
+            f"LCP: {lcp}ms; DOMContentLoaded: "
+            f"{vitals.get('dom_content_loaded_ms')}ms; load: "
+            f"{vitals.get('load_ms')}ms. Transfer: "
+            f"{vitals.get('js_kb')}KB JS, {vitals.get('css_kb')}KB CSS, "
+            f"{vitals.get('img_kb')}KB images across "
+            f"{vitals.get('resources')} resources.",
+            "OBSERVED", 0.85,
+            "Performance API in the owned browser (single load, no throttling)",
+            [url],
+            limitations="single unthrottled load; not a Lighthouse lab run"))
 
     return out

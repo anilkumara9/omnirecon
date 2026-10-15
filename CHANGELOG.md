@@ -2,6 +2,33 @@
 
 All notable changes to OmniRecon. Dates are commit dates (UTC).
 
+## v2.3.0 — Analyst Dossier (2026-10-15)
+
+**The analyst's methodology, automated.** Five upgrades that close the gap
+between what our engine produced and what a rigorous teardown dossier demands:
+
+- **`recon_scope` (25th tool)** — Phase-1 scope ledger, recorded *before* any
+  deep recon: ownership tier (`owned` / `open-source` / `third-party`,
+  local targets auto-classified as owned), live Terms-of-Service probe,
+  robots.txt, access method, and the in-scope/out-of-scope boundary.
+  Autopilot runs it as step 1; CLI: `omnirecon.cli scope`.
+- **Motion catalog** — `recon_analyze_ui` now reports every distinct CSS
+  transition and `@keyframes` animation (property, duration, easing curve,
+  delay, element), plus detected motion libraries
+  (GSAP / Framer-Motion / Lottie). New `motion` evidence type.
+- **Dark-mode probe** — emulates `prefers-color-scheme: dark` in the owned
+  browser and reports whether the site adapts (background comparison).
+- **Web Vitals snapshot** — LCP, DOMContentLoaded, load timings, and
+  transfer weight (JS/CSS/img KB) from the Performance API. New `perf`
+  evidence type, honestly labeled as a single unthrottled load.
+- **Feature-flag mining** — JS bundles are scanned for flag SDKs
+  (LaunchDarkly, Flagsmith, Unleash, GrowthBook, Statsig, Optimizely) and
+  flag/experiment names (`useFeatureFlag("…")` etc.), reported as INFERRED.
+- **Self-imposed rate limit** — all direct HTTP recon (crawls, probes,
+  scans, spec fetches) is now gated at **max 1 request/second** via
+  `security.RateLimiter`; the owned browser drives pages at human-like pace.
+200 tests.
+
 ## v2.2.1 — One-Command Setup (2026-10-15)
 
 **Zero-headache install.** One command does everything:

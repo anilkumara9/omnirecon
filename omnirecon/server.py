@@ -1211,7 +1211,7 @@ def recon_get_graph(session_id: Annotated[str, Field(description="Session ID ret
 @mcp.tool()
 def recon_get_evidence(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
                        finding_id: Annotated[str, Field(description="Exact finding ID like F-0001; empty to filter instead")] = "",
-                       type: Annotated[str, Field(description="Filter by type: route, endpoint, component, asset, schema, tech, state, note, auth, signature")] = "",
+                       type: Annotated[str, Field(description="Filter by type: route, endpoint, component, asset, schema, tech, state, note, auth, signature, scope, motion, perf")] = "",
                        classification: Annotated[str, Field(description="Filter by OBSERVED, SOURCE_VERIFIED, INFERRED, UNVERIFIED, BLOCKED")] = "",
                        query: Annotated[str, Field(description="Free-text search over finding titles and details")] = "") -> dict:
     """Retrieve ledger findings: by ID, by type/classification filter, or by
@@ -1731,6 +1731,64 @@ def recon_trace_signatures(
 
 
 @mcp.tool()
+def recon_scope(
+    session_id: Annotated[str, Field(description="Session ID returned by recon_start")],
+    ownership: Annotated[str, Field(description="Target ownership: 'owned' (your own target — full depth allowed), 'open-source' (public project), or 'third-party' (default: public visitor surface only)")] = "third-party",
+) -> dict:
+    """Build the Phase-1 scope ledger BEFORE deep recon: ownership tier,
+    Terms-of-Service status, robots.txt, access method, and the in-scope /
+    out-of-scope boundary. Anything outside the boundary becomes a BLOCKED
+    finding later — never an action. Run this first on third-party targets."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    ownership = (ownership or "third-party").lower()
+    if ownership not in ("owned", "open-source", "third-party"):
+        return _err(f"invalid ownership '{ownership}'", "invalid_input",
+                    "one of: owned, open-source, third-party")
+    target = (session.get("target") or "").strip()
+    if not target:
+        return _err("session has no target", "internal",
+                    "start a session with recon_start first")
+    try:
+        from omnirecon import scope as SC
+    except Exception as e:
+        return _err("scope module unavailable", "internal", str(e)[:200])
+
+    kind = session.get("target_kind", "url")
+    tos_result, robots_result = None, None
+    if kind == "url" and target.startswith(("http://", "https://")):
+        base = SC._base_of(target)
+        if base:
+            tos_result = SC.check_tos(base)
+            robots_result = SC.check_robots(base)
+    elif kind in ("repo", "artifact"):
+        # Local files the operator provided: owned by construction.
+        if ownership == "third-party":
+            ownership = "owned"
+    ledger = SC.build_scope(target, ownership, tos_result, robots_result)
+
+    items = [_finding(
+        "scope", f"Scope ledger: {ledger['ownership']} / {target[:60]}",
+        SC.scope_summary(ledger) + " Out of scope (never attempted): "
+        + "; ".join(ledger["out_of_scope"][:6]) + ".",
+        "OBSERVED", 0.95, "ToS + robots.txt probed directly; ownership declared",
+        sources=[target], engine="scope",
+        limitations="ToS status is a best-effort probe of common paths; "
+                    "read the actual ToS before sensitive work")]
+    ids = _ledger_add(session_id, mgr, items)
+    return _contract(
+        {"scope": ledger, "finding_ids": ids},
+        unknowns=[] if tos_result or kind != "url" else
+                 ["ToS/robots checks skipped (no base URL)"],
+        limitations=["scope is declared, not legally verified — the operator "
+                     "is responsible for staying inside it"])
+
+
+@mcp.tool()
 def recon_auto_pilot(
     target: Annotated[str, Field(description="Target to reverse-engineer: full URL (https://...), OpenAPI doc URL, local repo path, or artifact file path")],
     depth: Annotated[str, Field(description="How deep to go: 'quick' (~2 min, rapid recon + top pages), 'standard' (~5 min, + network/UI/sourcemaps), 'deep' (~15 min, + all pages + endpoint probing)")] = "standard",
@@ -1766,6 +1824,9 @@ def recon_auto_pilot(
                 "detail": failed, "tools_run": ran}
     sid = start["session_id"]
     target_kind = start.get("target_kind", "url")
+
+    # Phase 1: scope ledger before anything deep (cheap, always runs)
+    _safe("recon_scope", recon_scope, sid)
 
     # Branch on target kind: repos, artifacts, and API specs get their
     # dedicated engines, not the web crawl pipeline.

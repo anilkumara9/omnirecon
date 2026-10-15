@@ -90,6 +90,51 @@ def test_component_variants_distinguished():
     assert secondaries and secondaries[0]["count"] == 1, result["components"]
 
 
+MOTION_HTML = """<html><head><style>
+@keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
+.box { width: 100px; height: 100px; background: red;
+       transition: opacity 0.3s ease-in-out;
+       animation: pulse 2s ease-in-out infinite; }
+</style></head><body><div class="box">x</div></body></html>"""
+
+MOTION_URL = "data:text/html," + urllib.parse.quote(MOTION_HTML)
+
+
+def test_motion_catalog_captures_transitions_and_animations():
+    page = _run(BROWSER.goto(MOTION_URL))
+    result = _run(ui_intel.analyze_ui(
+        BROWSER, page["page_id"], "test-ui-motion", MOTION_URL))
+    motion = result.get("motion")
+    assert motion, result.keys()
+    trans = motion["transitions"]
+    assert any(t["property"] == "opacity" and "0.3s" in t["duration"]
+               for t in trans), trans
+    anims = motion["animations"]
+    assert any(a["name"] == "pulse" and "2s" in a["duration"]
+               for a in anims), anims
+    assert any("ease-in-out" in (t.get("easing") or "")
+               for t in trans), trans
+
+
+def test_dark_mode_probe_reports():
+    page = _run(BROWSER.goto(DATA_URL))
+    result = _run(ui_intel.analyze_ui(
+        BROWSER, page["page_id"], "test-ui-dark", DATA_URL))
+    dm = result.get("dark_mode")
+    assert dm is not None, result.keys()
+    assert isinstance(dm["supported"], bool), dm
+
+
+def test_vitals_snapshot_reports():
+    page = _run(BROWSER.goto(DATA_URL))
+    result = _run(ui_intel.analyze_ui(
+        BROWSER, page["page_id"], "test-ui-vitals", DATA_URL))
+    vitals = result.get("vitals")
+    assert vitals, result.keys()
+    assert vitals["resources"] >= 0, vitals
+    assert vitals["js_kb"] >= 0, vitals
+
+
 def test_sections_and_ledger():
     page = _run(BROWSER.goto(DATA_URL))
     result = _run(ui_intel.analyze_ui(

@@ -12,11 +12,17 @@ import re
 import httpx
 import yaml
 
+from omnirecon.security import RateLimiter
+
+# Self-imposed politeness: max 1 req/sec on spec fetches.
+_API_LIMITER = RateLimiter(requests_per_second=1.0)
+
 
 def fetch_spec(url: str, timeout: int = 25) -> dict:
     """Download and parse an OpenAPI/Swagger document (JSON or YAML)."""
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=True) as c:
+        with httpx.Client(timeout=timeout, follow_redirects=True,
+                          event_hooks={"request": [lambda r: _API_LIMITER.wait()]}) as c:
             r = c.get(url, headers={"Accept": "application/json, application/yaml"})
     except Exception as e:
         return {"url": url, "error": f"fetch failed: {e!s}"[:300]}

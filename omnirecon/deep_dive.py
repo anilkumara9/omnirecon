@@ -18,6 +18,19 @@ import httpx
 
 from omnirecon import security as SEC
 
+# Self-imposed politeness: max 1 req/sec on all direct HTTP recon.
+_POLITE_LIMITER = SEC.RateLimiter(requests_per_second=1.0)
+
+
+def _polite_wait(request) -> None:
+    _POLITE_LIMITER.wait()
+
+
+def _polite_client(timeout: float, headers: dict | None = None) -> httpx.Client:
+    return httpx.Client(timeout=timeout, follow_redirects=True,
+                        headers=headers or {},
+                        event_hooks={"request": [_polite_wait]})
+
 
 # --------------------------------------------------------------------------
 # ledger helpers
@@ -182,8 +195,7 @@ def recover_sourcemaps(session_id: str, page_url: str,
 
     headers = {"User-Agent": "Mozilla/5.0 (OmniRecon source-map recovery)"}
     maps_found, all_sources = [], set()
-    with httpx.Client(timeout=timeout, follow_redirects=True,
-                      headers=headers) as c:
+    with _polite_client(timeout, headers) as c:
         for js_url in script_urls:
             candidates = [js_url + ".map"]
             try:
@@ -371,8 +383,7 @@ def probe_endpoints(session_id: str, base_url: str,
     origin = f"{parsed.scheme}://{parsed.netloc}"
     live, guarded, dead, skipped, results = 0, 0, 0, 0, []
     headers = {"User-Agent": "Mozilla/5.0 (OmniRecon endpoint probe)"}
-    with httpx.Client(timeout=timeout, follow_redirects=True,
-                      headers=headers) as c:
+    with _polite_client(timeout, headers) as c:
         for ep in endpoints:
             # absolute URLs: probe their real host, don't mangle into origin
             if ep.startswith("http://") or ep.startswith("https://"):

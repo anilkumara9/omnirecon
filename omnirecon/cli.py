@@ -78,6 +78,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=lambda a: SRV.recon_trace_signatures(
         a.session, a.url, a.wait_ms))
 
+    p = sub.add_parser("scope",
+                       help="Build the Phase-1 scope ledger (ownership, ToS, boundary).")
+    p.add_argument("--session", required=True)
+    p.add_argument("--ownership",
+                   choices=("owned", "open-source", "third-party"),
+                   default="third-party",
+                   help="Target ownership tier")
+    p.set_defaults(func=lambda a: SRV.recon_scope(a.session, a.ownership))
+
     p = sub.add_parser("recon-status", help="Stage, progress, jobs, ledger stats.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_status(a.session))

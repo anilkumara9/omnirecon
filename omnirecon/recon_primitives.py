@@ -21,6 +21,18 @@ import httpx
 import tldextract
 from bs4 import BeautifulSoup
 
+from omnirecon.security import RateLimiter
+
+# Self-imposed politeness: every direct HTTP request this module makes
+# (crawls, probes, scans, fetches) goes through this gate — max 1 req/sec
+# per the analyst methodology's boundary. The owned browser drives pages at
+# human-like pace on its own.
+_POLITE_LIMITER = RateLimiter(requests_per_second=1.0)
+
+
+def _polite_wait(request) -> None:
+    _POLITE_LIMITER.wait()
+
 
 def _sanitize_no_proxy_env() -> None:
     """Drop bracketed IPv6 literals (e.g. ``[::1]``) from no_proxy/NO_PROXY.
@@ -62,6 +74,7 @@ def _client(timeout: float = 20.0) -> httpx.Client:
         headers={"User-Agent": UA, "Accept": "*/*"},
         follow_redirects=True,
         timeout=timeout,
+        event_hooks={"request": [_polite_wait]},
     )
 
 
@@ -382,6 +395,40 @@ def extract_endpoints_from_text(text: str, base_url: str = "") -> dict:
     }
 
 
+# Feature-flag / experiment SDK fingerprints and flag-name patterns.
+_FLAG_SDKS = (
+    "launchdarkly", "ldclient", "flagsmith", "unleash", "growthbook",
+    "statsig", "optimizely", "splitio", "posthog",
+)
+_FLAG_NAME_RE = re.compile(
+    r"""["'`]([A-Za-z0-9_.-]{3,80}?(?:[-_.](?:flag|flags|experiment|toggle|variant|treatment))[A-Za-z0-9_.-]{0,40})["'`]""")
+_FLAG_CALL_RE = re.compile(
+    r"""(?:useFeatureFlag|useFlag|isFeatureEnabled|getFeatureFlag|checkGate)\(\s*["'`]([^"'`]{2,80})["'`]""")
+
+
+def mine_feature_flags(text: str, cap: int = 200_000) -> dict:
+    """Mine feature-flag SDK usage and flag names from JS/HTML text.
+
+    Returns {"sdks": [...], "flags": [...]}. Names are INFERRED — a string
+    that looks like a flag may be something else; the ledger records that.
+    """
+    sample = text[:cap].lower()
+    sdks = sorted({s for s in _FLAG_SDKS if s in sample})
+    names: set[str] = set()
+    for m in _FLAG_NAME_RE.finditer(text[:cap]):
+        names.add(m.group(1))
+        if len(names) >= 60:
+            break
+    for m in _FLAG_CALL_RE.finditer(text[:cap]):
+        names.add(m.group(1).strip())
+        if len(names) >= 60:
+            break
+    # drop obvious non-flags (file extensions, css classes)
+    names = {n for n in names
+             if not n.lower().endswith((".js", ".css", ".png", ".svg"))}
+    return {"sdks": sdks, "flags": sorted(names)[:60]}
+
+
 def extract_api_surface(url: str, max_js_files: int = 12, max_js_bytes: int = 1_500_000) -> dict:
     """Fetch a page + its same-origin JS bundles, extract every API-ish endpoint."""
     out: dict = {"target": url}
@@ -398,12 +445,17 @@ def extract_api_surface(url: str, max_js_files: int = 12, max_js_bytes: int = 1_
     base_reg = registrable_domain(urlparse(str(r.url)).hostname)
     merged: dict[str, dict] = {}
     gql: set[str] = set()
+    flag_sdks: set[str] = set()
+    flag_names: set[str] = set()
 
     def absorb(text: str):
         res = extract_endpoints_from_text(text, str(r.url))
         for e in res["internal"] + res["external"]:
             merged.setdefault(e["endpoint"], e)
         gql.update(res["graphql_operations"])
+        ff = mine_feature_flags(text)
+        flag_sdks.update(ff["sdks"])
+        flag_names.update(ff["flags"])
 
     absorb(html)  # inline scripts + HTML attributes
 
@@ -432,6 +484,8 @@ def extract_api_surface(url: str, max_js_files: int = 12, max_js_bytes: int = 1_
     out["internal_endpoints"] = sorted(internal, key=key)[:300]
     out["external_endpoints"] = sorted(external, key=key)[:100]
     out["graphql_operations"] = sorted(gql)[:50]
+    out["feature_flags"] = {"sdks": sorted(flag_sdks),
+                            "flags": sorted(flag_names)[:60]}
     out["total_unique"] = len(merged)
     return out
 

@@ -27,6 +27,7 @@ _CLASS_RANK = {
 FINDING_TYPES = frozenset({
     "route", "component", "endpoint", "entity", "workflow",
     "asset", "auth", "tech", "state", "note", "schema", "signature",
+    "scope", "motion", "perf",
 })
 
 VERIFICATION_STATES = frozenset({"unverified", "verified", "contradicted"})

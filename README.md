@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
-  <img src="https://img.shields.io/badge/tools-24-green" alt="24 tools" />
+  <img src="https://img.shields.io/badge/tools-25-green" alt="25 tools" />
 </p>
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents. v2.2.1</b></p>
@@ -39,7 +39,7 @@ works and give me a rebuild plan."*
 - [How it works](#how-it-works)
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
-- [The 24 tools](#the-24-tools)
+- [The 25 tools](#the-25-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
@@ -125,17 +125,19 @@ its evidence.
 — a complete session (evidence ledger, 15-section spec, design tokens,
 screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
-## The 24 tools
+## The 25 tools
 
 | Tool | What it does |
 |---|---|
-| `recon_auto_pilot` | **One-call full pipeline**: rapid recon → routes → deep inspection → network → UI → spec. Returns build-ready blueprint. |
+| `recon_auto_pilot` | **One-call full pipeline**: scope ledger → rapid recon → routes → deep inspection → network → UI → spec. Returns build-ready blueprint. |
+| `recon_scope` | **Scope ledger**: ownership tier (owned/open-source/third-party), ToS status, robots.txt, access method, and the in-scope/out-of-scope boundary — recorded before any deep recon. |
 | `recon_trace_signatures` | **Signature tracing**: live-hooks the page's crypto (WebCrypto/CryptoJS) + fetch/XHR and reports *how* each `sign=`/`token=` is computed — algorithm, which fields fed the input, and the exact JS line. |
 | `recon_mock_network` | **Edge-state revelator**: mock API failures/slowness, capture error/empty/loading UI. |
 | `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Targets: web URL, OpenAPI document URL, repo dir/git URL, APK/IPA/binary/JS-bundle file. Returns `session_id`. |
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
 | `recon_inspect_page` | Rendered DOM, controls, forms, a11y data, 3-viewport screenshots, console errors. |
+| `recon_analyze_ui` | Design tokens (colors, type, spacing, radii, shadows), component variants, layout sections, **motion catalog** (transitions, keyframe animations, GSAP/Framer-Motion/Lottie), **dark-mode probe**, and a **Web Vitals snapshot** (LCP, load timings, transfer weight). |
 | `recon_trace_workflow` | Goal-directed clicking through multi-step user journeys. **Auto-emits a replayable Playwright script** per trace. |
 | `recon_capture_network` | Live XHR/fetch/WebSocket capture with secrets redacted; each request linked to the script+line that fired it. Captures **values-free request/response shapes** (`type:"schema"` findings) and WebSocket message shapes. |
 | `recon_analyze_source` | AST route extraction, components, state management, migrations, auth files, env-var names. |
@@ -223,7 +225,7 @@ Run the server (stdio transport — your agent connects to this, not you directl
 ```
 
 It waits silently for MCP input; that's normal. To verify everything works
-from your terminal instead, use the CLI (same 24 tools):
+from your terminal instead, use the CLI (same 25 tools):
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -302,7 +304,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 24 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 25 tools.
 
 ### Cursor
 
@@ -358,14 +360,14 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 24 tools are mirrored as CLI commands running the same code — useful for
+All 25 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
 .venv/bin/python -m omnirecon.cli recon-discover-routes <session-id> https://example.com --max-pages 40
 .venv/bin/python -m omnirecon.cli recon-generate-spec <session-id>
-.venv/bin/python -m omnirecon.cli --help   # all 23 commands
+.venv/bin/python -m omnirecon.cli --help   # all 25 commands
 ```
 
 Sessions persist on disk (`sessions/<id>/`), so CLI and MCP sessions are
@@ -408,7 +410,7 @@ Measured 2026-10-12/13 on real targets (not estimates):
 | Hacker News (live) | 8/8 discovered routes verified returning HTTP 200 |
 | Demo SaaS teardown | 36 findings, 5 pages, 5 API endpoints, design tokens, 3-viewport screenshots — [full session committed](examples/teardown-acme-metrics/) |
 
-185 tests green (`pytest tests/`). Raw benchmark data
+200 tests green (`pytest tests/`). Raw benchmark data
 in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
@@ -423,7 +425,7 @@ in [`benchmarks/results/`](benchmarks/results/).
 ```
 omnirecon/            the 23-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
-tests/                pytest suite (185 tests)
+tests/                pytest suite (200 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 examples/             committed teardown sessions (proof, not docs)
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
