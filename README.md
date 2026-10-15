@@ -42,8 +42,7 @@ works and give me a rebuild plan."*
 - [The 25 tools](#the-25-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
-- [Installation](#installation)
-- [Connecting your agent](#connecting-your-agent)
+- [Setup](#setup-about-5-minutes)
 - [Agent workflow](#agent-workflow)
 - [Evidence model](#evidence-model)
 - [Measured accuracy](#measured-accuracy)
@@ -176,24 +175,64 @@ recon_authenticate(session_id, login_url, username, password)
 
 The password is used transiently for the form fill and **never stored** — not in the session dir, not in the ledger, not in logs. Cookies are kept `0600`.
 
-## Installation
+## Setup (about 5 minutes)
 
-Requirements: Python 3.10+, no Node.js.
+You need: **Python 3.10+**, an internet connection, and ~400MB free disk
+(mostly Playwright's Chromium). No Node.js.
 
-**One command — installs everything and configures your agent:**
+### Step 1 — Install with one command
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh \
   | bash -s -- --client auto
 ```
 
-That single command clones the repo, creates `.venv/`, installs dependencies,
-downloads Playwright's Chromium (~300MB, skipped if already present), verifies
-the install, **and writes the MCP config for every agent it finds**
-(Claude Code, Codex, Cursor, Windsurf, Zed) — no manual JSON editing. Then just
-restart your agent and ask it: *"Reverse-engineer https://example.com"*.
+That single command does six things, in order:
 
-Prefer the explicit steps?
+1. **Clones** the repo to `~/omnirecon` (skipped if you already have a clone —
+   it installs in place instead).
+2. **Creates** an isolated virtualenv (`.venv/`) and installs the pinned
+   dependencies (`mcp<2`, `playwright`, `httpx`, …).
+3. **Downloads** Playwright's Chromium (~300MB; skipped if already present) —
+   this is the browser OmniRecon drives for screenshots, clicking, and
+   network capture.
+4. **Verifies** the install actually works (imports the package, launches the
+   browser once).
+5. **Configures your agent** — detects Claude Code, Codex, Cursor, Windsurf,
+   and Zed, and registers OmniRecon in each one's MCP config automatically.
+   Existing configs are merged, never duplicated; a config file it can't
+   parse is backed up (`.omnirecon.bak`) instead of overwritten.
+6. **Safe to re-run** — run it again anytime; steps that are already done are
+   skipped.
+
+To configure only specific agents, replace `auto` with a name:
+`claude-code`, `codex`, `cursor`, `windsurf`, `zed`, or `generic`.
+
+### Step 2 — Restart your agent
+
+Close and reopen your agent/IDE so it picks up the new MCP server. Quick
+check for Claude Code CLI: `claude mcp list` should show `omnirecon`.
+
+### Step 3 — Ask it to reverse-engineer something
+
+> *Reverse-engineer https://example.com — explain how it works and give me a
+> rebuild plan.*
+
+Your agent now drives all 25 tools by itself. You never run the server
+manually — it's a stdio process your agent launches on demand (no ports, no
+daemons, nothing running in the background).
+
+### Check it's healthy (optional)
+
+Without any agent, from a terminal:
+
+```bash
+~/omnirecon/.venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
+# → {"session_id": "...", ...} means your install is healthy
+```
+
+<details>
+<summary>Prefer the explicit steps?</summary>
 
 ```bash
 git clone https://github.com/anilkumara9/omnirecon.git
@@ -201,75 +240,26 @@ cd omnirecon
 ./install.sh --client auto   # Linux / macOS
 ```
 
-Windows: run `install.bat auto` instead (same steps: venv + deps + Chromium + verify + agent config).
-
-`--client` accepts `claude-code`, `codex`, `cursor`, `windsurf`, `zed`,
-`generic`, or `auto` (detect everything installed). Safe to re-run — steps
-that are already done are skipped, and existing configs are merged, never
-duplicated or destroyed (unparseable files are backed up first).
-
-<details>
-<summary>Manual install (if you prefer each step explicit)</summary>
+Windows: run `install.bat auto` instead (same six steps). Fully manual, no
+script:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/playwright install chromium   # browser for inspect/trace/capture
+.venv/bin/playwright install chromium   # the driven browser
+.venv/bin/python -m omnirecon.cli setup auto   # write agent configs
 ```
+
+`setup` also takes `--dry-run` to preview what it would write without
+changing anything.
 
 </details>
 
-Run the server (stdio transport — your agent connects to this, not you directly):
-
-```bash
-.venv/bin/python omnirecon/server.py
-```
-
-It waits silently for MCP input; that's normal. To verify everything works
-from your terminal instead, use the CLI (same 25 tools):
-
-```bash
-.venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
-# → {"session_id": "...", ...} means your install is healthy
-```
-
-## Connecting your agent
-
-OmniRecon is a **stdio MCP server**: one Python process, no ports, no daemons.
-Restart the agent/IDE after registering.
-
-**Easiest — the command writes the config for you:**
-
-```bash
-.venv/bin/python -m omnirecon.cli setup auto
-# or pick one: claude-code, codex, cursor, windsurf, zed, generic
-# --dry-run previews without writing; everything is idempotent
-```
-
-This auto-detects your venv Python and `server.py`, then writes/merges the
-config into the right place for each client — no `/path/to/...` to get wrong,
-no manual JSON editing. Existing configs are merged, never duplicated;
-unparseable files are backed up (`.omnirecon.bak`) rather than destroyed.
-
-Example output:
-
-```json
-{
-  "ok": true,
-  "clients": [
-    {"client": "cursor", "changed": true, "note": "written",
-     "path": "/home/you/.cursor/mcp.json", "restart": "restart cursor"}
-  ],
-  "summary": "1/1 client(s) configured"
-}
-```
-
 <details>
-<summary>Manual config (if you prefer each step explicit)</summary>
+<summary>Writing the agent config by hand?</summary>
 
-Every integration below registers the same thing — the Python interpreter from
-your virtualenv running `omnirecon/server.py`. Replace `/path/to/omnirecon`
-with your clone location and use the venv Python (not system Python), so the
-pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve.
+Every integration registers the same thing: your virtualenv's Python running
+`omnirecon/server.py` over stdio. Replace `/path/to/omnirecon` with your
+clone location and use the **venv Python** (not system Python).
 
 ### Claude Code (CLI)
 
@@ -277,22 +267,6 @@ pinned dependencies (`mcp<2`, `playwright`, `httpx`, …) resolve.
 claude mcp add omnirecon -- /path/to/omnirecon/.venv/bin/python /path/to/omnirecon/omnirecon/server.py
 claude mcp list          # verify it shows up
 ```
-
-Project-scoped (shared with your team via `.mcp.json` in the repo root):
-
-```json
-{
-  "mcpServers": {
-    "omnirecon": {
-      "command": "/path/to/omnirecon/.venv/bin/python",
-      "args": ["/path/to/omnirecon/omnirecon/server.py"]
-    }
-  }
-}
-```
-
-Then just ask: *"Reverse-engineer https://example.com — explain how it works
-and give me a rebuild plan."*
 
 ### Codex CLI
 
@@ -308,7 +282,7 @@ Restart Codex. Verify with `/mcp` — `omnirecon` should list 25 tools.
 
 ### Cursor
 
-1. Open **Settings → MCP** (or `~/.cursor/mcp.json`).
+1. Open **Settings → MCP** (or edit `~/.cursor/mcp.json`).
 2. Add:
 
 ```json
@@ -322,12 +296,12 @@ Restart Codex. Verify with `/mcp` — `omnirecon` should list 25 tools.
 }
 ```
 
-3. Toggle the server on. In Agent mode, ask it to reverse-engineer a target —
-   Cursor will call the tools itself.
+3. Toggle the server on. In Agent mode, ask it to reverse-engineer a target.
 
 ### Windsurf
 
-1. Open **Settings → Cascade → MCP servers** (or `~/.codeium/windsurf/mcp_config.json`).
+1. Open **Settings → Cascade → MCP servers** (or
+   `~/.codeium/windsurf/mcp_config.json`).
 2. Add the same `mcpServers` JSON block as Cursor above.
 3. Restart Windsurf. The tools appear in Cascade's tool list.
 
@@ -350,11 +324,9 @@ Restart Zed. Use the assistant panel — it can now drive recon sessions.
 
 ### Any other MCP client
 
-Any client that speaks MCP over stdio works: register a server with
-
-- **command:** `/path/to/omnirecon/.venv/bin/python`
-- **args:** `["/path/to/omnirecon/omnirecon/server.py"]`
-- **transport:** stdio (the default — no SSE/HTTP needed)
+Any client that speaks MCP over stdio works — register a server with
+**command** `/path/to/omnirecon/.venv/bin/python`, **args**
+`["/path/to/omnirecon/omnirecon/server.py"]`, **transport** stdio.
 
 </details>
 
