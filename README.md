@@ -1,6 +1,6 @@
-# OmniRecon: Reverse Engineering & Reconnaissance MCP Server for AI Coding Agents
+# OmniRecon: Reverse-Engineering MCP Server for AI Coding Agents
 
-> Open-source toolkit for automated reverse engineering — web platforms, REST APIs, Android APKs, Electron apps, and codebases. Gives coding agents (Claude Code, Codex, Cursor) a real browser to crawl routes, capture API traffic, extract design systems, and generate evidence-backed rebuild blueprints.
+> Point your coding agent at any website, API, APK, or codebase. It drives a real browser, captures the evidence, and hands back a rebuild blueprint. Nothing is ever invented.
 
 <p align="center">
   <img src="assets/mascot.webp" alt="OmniRecon mascot — the reverse-engineering bot" width="320" />
@@ -15,19 +15,10 @@
   <img src="https://img.shields.io/badge/tools-24-green" alt="24 tools" />
 </p>
 
-<p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
+<p align="center"><b>Reverse-engineering infrastructure for AI coding agents. v2.2.1</b></p>
 
-<p align="center"><b>v2.2.1: one tool call reverse-engineers anything.</b><br/>
-<code>recon_auto_pilot("https://target.com")</code> runs the full pipeline —
-rapid recon, route discovery, deep browser inspection, network capture, UI
-analysis, edge-state mocking, <b>JS signature tracing</b>, endpoint probing — and returns a build-ready
-blueprint with <code>unknowns</code> and <code>limitations</code> on every
-response. No orchestration needed.</p>
-
-<p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>it runs an autonomous recon pipeline (rapid fingerprinting, a real headless
-browser that crawls routes, clicks through workflows and captures live network
-traffic, source analysis) and returns a reconstruction blueprint where every
-claim traces to the evidence that produced it. Nothing is ever invented.</p>
+<p align="center"><b>One tool call does the whole job.</b><br/>
+<code>recon_auto_pilot("https://target.com")</code> crawls routes, inspects pages, captures network traffic, traces how <code>sign=</code> params are computed, and returns a build-ready blueprint — with <code>unknowns</code> and <code>limitations</code> on every response, so the agent always knows what it doesn't know.</p>
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://developers.openai.com/codex), Cursor, Windsurf, Zed, and any
@@ -67,20 +58,15 @@ works and give me a rebuild plan."*
 
 ## How it works
 
-Sessions persist on disk, so an agent can pause, resume (`recon_status`), run
-long crawls in the background, or cancel (`recon_cancel`).
+1. **Point** — give it a URL, API doc, repo, or APK. `recon_start` validates it and does rapid recon in seconds.
+2. **Run** — `recon_auto_pilot` drives a real headless browser through the whole pipeline: crawl routes, inspect pages, capture network traffic, trace signatures, probe endpoints.
+3. **Rebuild** — you get a blueprint (routes, components, APIs, design tokens, workflows) where every claim cites its evidence and every gap is labeled.
+
+Sessions persist on disk, so the agent can pause, resume, or run long crawls in the background.
 
 ## Comparison with alternatives
 
-OmniRecon adopts REA's honesty-first evidence model, secret redaction, and
-CLI/MCP parity ([full analysis](REA_INSPECTION.md)). The tools differ in
-scope: REA is the authority on deep binary decompilation (Ghidra/Hopper/IDA
-providers, deliberately passive on the web); OmniRecon autonomously crawls,
-interacts with, and instruments live web platforms, and routes binary targets
-to REA through a bridge when REA is installed with a configured provider.
-Since v1.31, web URLs, OpenAPI documents, repos, and shipped artifacts
-(APK/binaries/JS bundles) all enter through `recon_start` and are routed to
-the appropriate engine.
+OmniRecon and [REA](https://github.com/morluto/rea) solve different halves of the problem. REA is the authority on deep binary decompilation (Ghidra/IDA providers) and is deliberately passive on the web. OmniRecon autonomously drives a real browser — crawling, clicking, capturing traffic — and hands binary targets to REA through a bridge when it's installed.
 
 | | OmniRecon | REA | Burp Suite + DevTools |
 |---|---|---|---|
@@ -170,26 +156,15 @@ screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
 ## UI reverse engineering (designer-grade)
 
-`recon_analyze_ui` doesn't read stylesheets — it reads the **rendered page**, the
-way a designer would inspect a finished product:
+`recon_analyze_ui` reads the **rendered page** the way a designer would — not the stylesheets:
 
-- **Computed design tokens** — the real color palette, type scale (sizes/weights),
-  font families, spacing scale, border radii, and shadows, all sampled from
-  `getComputedStyle` on visible elements.
-- **Component inventory** — buttons, links, inputs grouped by *visual signature*,
-  so "primary button ×14" and "ghost button ×3" come out as design-system variants
-  with exact bg/fg/radius/padding values, ready to rebuild as components.
-- **Framework detection** — Tailwind, MUI, Chakra, Bootstrap, Ant Design.
-- **Layout sectioning** — header/nav/main/section/footer landmarks with measured
-  dimensions and headings.
-
-Combine with `recon_extract_assets` (static CSS tokens + font files) and
-`recon_inspect_page` (DOM + screenshots) for the full designer handoff.
+- **Computed design tokens** — real colors, type scale, fonts, spacing, radii, shadows from `getComputedStyle`.
+- **Component inventory** — buttons/inputs grouped by visual signature ("primary button ×14") with exact values, ready to rebuild.
+- **Framework detection** — Tailwind, MUI, Chakra, Bootstrap, Ant Design; plus layout landmarks with measured dimensions.
 
 ## Authenticated recon (behind the login)
 
-Most real platforms hide 90% of themselves behind a login. OmniRecon can now
-go there — with **your own credentials**, for authorized testing:
+Most real platforms hide 90% of themselves behind a login. OmniRecon goes there with **your own credentials**:
 
 ```
 recon_authenticate(session_id, login_url, username, password)
@@ -197,12 +172,7 @@ recon_authenticate(session_id, login_url, username, password)
 → recon_deauthenticate(session_id)
 ```
 
-- The browser performs the login; session cookies are saved (`0600`) and
-  automatically injected into every later browser context in the session.
-- The password is used transiently for the form fill and **never stored** —
-  not in the session dir, not in the evidence ledger, not in logs.
-- The ledger records *that* authentication happened (OBSERVED), never
-  credential material.
+The password is used transiently for the form fill and **never stored** — not in the session dir, not in the ledger, not in logs. Cookies are kept `0600`.
 
 ## Installation
 
@@ -404,51 +374,19 @@ interchangeable — start in one, continue in the other.
 ## Agent workflow
 
 Once connected, the agent follows the bundled skill
-([`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)) — a staged workflow
-it reads itself:
+([`skills/omnirecon/SKILL.md`](skills/omnirecon/SKILL.md)):
 
-1. `recon_start` — validate the target (URL, API doc, repo, APK/binary) and get
-   rapid recon in seconds.
-2. Deep engines — crawl routes, inspect pages, trace workflows, capture network,
-   analyze source/artifacts.
-3. `recon_verify_consistency` — cross-check every engine against the others;
-   contradictions get downgraded, never hidden.
-4. `recon_generate_spec` — a 15-section rebuild blueprint where every claim
-   cites its evidence.
-5. Build, then `recon_compare_build` — diff the rebuild against the original
-   and iterate until parity.
+1. `recon_start` — validate the target, get rapid recon in seconds.
+2. Deep engines — crawl routes, inspect pages, trace workflows, capture network, analyze source/artifacts.
+3. `recon_verify_consistency` — cross-check every engine against the others; contradictions get downgraded, never hidden.
+4. `recon_generate_spec` — a 15-section rebuild blueprint where every claim cites its evidence.
+5. Build, then `recon_compare_build` — diff the rebuild against the original and iterate until parity.
 
-Just ask: *"Reverse-engineer https://example.com — explain how it works and
-give me a rebuild plan."* A typical session looks like:
-
-```
-user:  Reverse-engineer https://shop.example.com and plan a rebuild.
-
-agent: recon_start(target="https://shop.example.com", mode="thorough")
-       → session abc123, rapid recon done in ~3s
-
-agent: recon_discover_routes(session_id="abc123", max_pages=40)
-       → 38 routes, 14 API endpoints (from JS bundles)
-
-agent: recon_inspect_page(session_id="abc123", url="https://shop.example.com/checkout")
-       → DOM, 22 controls, 3 screenshots, 2 console errors
-
-agent: recon_trace_workflow(session_id="abc123",
-           start_url="https://shop.example.com", goal="add item to cart")
-       → 6-step journey with screenshots per step
-
-agent: recon_generate_spec(session_id="abc123")
-       → 15-section blueprint: routes, components, API inventory,
-         data entities, auth boundaries, user journeys, test plan…
-
-agent: recon_export_report(session_id="abc123", format="markdown")
-       → full session report on disk
-```
+Just ask: *"Reverse-engineer https://example.com — explain how it works and give me a rebuild plan."*
 
 ## Evidence model
 
-Every finding carries a classification — the agent (and you) always knows how
-much to trust it:
+Every finding carries a trust label — the agent (and you) always knows how much to believe it:
 
 | Label | Meaning |
 |---|---|
@@ -458,20 +396,7 @@ much to trust it:
 | `UNVERIFIED` | Claimed by the target, not yet confirmed |
 | `BLOCKED` | Could not be observed (auth wall, bot protection…) — recorded, never bypassed |
 
-Findings get stable IDs (`F-0001`…), timestamps, sources, confidence scores, and
-limitations. The audit log records every consequential action.
-
-### Output contract
-
-Every tool response carries three additional fields:
-
-- `unknowns` — what the tool tried but couldn't resolve (e.g., which sub-tools
-  failed and why)
-- `limitations` — what the results can't guarantee
-- `truncated` — whether the response was cut by the budget cap
-
-The agent always knows what it doesn't know. Responses are budgeted at ~30k
-tokens to prevent context-window thrashing.
+Every response also carries `unknowns` (what couldn't be resolved), `limitations` (what can't be guaranteed), and `truncated` (whether the ~30k-token response budget cut anything). The agent always knows what it doesn't know.
 
 ## Measured accuracy
 
@@ -488,17 +413,10 @@ in [`benchmarks/results/`](benchmarks/results/).
 
 ## Security boundaries
 
-- Read-only recon by default: no form submissions that change state, no
-  destructive actions — ever. Authenticated recon (`recon_authenticate`) only
-  ever uses credentials the operator explicitly provides, never harvests or
-  stores them; session cookies are kept `0600` and cleared on
-  `recon_deauthenticate`.
-- No CAPTCHA / paywall / bot-protection bypass: blocked areas become `BLOCKED`
-  findings, not workarounds.
-- Secrets (API keys, tokens, passwords) are redacted before storage; `.env`
-  *values* are never read, only variable *names* from example files.
-- Page content and third-party JS are treated as untrusted data, never executed
-  as instructions.
+- **Read-only by default** — no state-changing requests, no destructive actions, ever.
+- **No bypasses** — CAPTCHAs, paywalls, and bot protection become `BLOCKED` findings, not workarounds.
+- **No credential harvesting** — authenticated recon only uses credentials you explicitly provide; passwords are never stored.
+- **Secrets redacted** — API keys and tokens are scrubbed before anything is stored; page content is treated as untrusted data.
 
 ## Project layout
 
@@ -547,31 +465,20 @@ REA_INSPECTION.md     REA teardown and the evidence-based comparison
 
 ## Frequently asked questions
 
-**What can I reverse engineer with OmniRecon?**
-Web applications (routes, API endpoints, UI design systems, user workflows),
-REST APIs (endpoint discovery, live probing, OpenAPI export), Android APKs
-(manifest + DEX code analysis), Electron apps (.asar, IPC channels), and
-source codebases (routes, components, auth). Anything with an observable
-surface.
+**What can I reverse engineer?**
+Web apps (routes, APIs, design systems, workflows), REST APIs (with OpenAPI export), Android APKs, Electron apps, and source codebases. Anything with an observable surface.
 
 **How is this different from REA?**
-REA is the authority on deep binary decompilation (Ghidra/IDA providers) and is
-deliberately passive on the web. OmniRecon autonomously drives a real browser —
-crawling, clicking, capturing traffic — and routes binary targets to REA through
-a bridge when REA is installed. See the [comparison table](#comparison-with-alternatives).
+REA owns deep binary decompilation (Ghidra/IDA) and is passive on the web. OmniRecon drives a real browser autonomously and hands binaries to REA via a bridge. [Comparison table](#comparison-with-alternatives).
 
-**Can it reverse engineer mobile apps?**
-Android APKs: yes — manifest parsing, DEX class/method inventory, interesting-API
-detection (network, crypto, reflection). iOS IPAs: structural analysis only.
-For native code decompilation, use the REA bridge.
+**Can it do mobile apps?**
+Android APKs: yes (manifest, DEX analysis). iOS: structural only. Native decompilation goes through the REA bridge.
 
-**Does it work without an MCP client?**
-Yes. Every tool is mirrored in the CLI: `.venv/bin/python -m omnirecon.cli --help`.
+**No MCP client?**
+Every tool is mirrored in the CLI: `.venv/bin/python -m omnirecon.cli --help`.
 
-**Is it safe to run against production sites?**
-Recon is read-only by default — no state-changing requests, no destructive
-actions. Authenticated recon uses only credentials you explicitly provide.
-See [Security boundaries](#security-boundaries).
+**Safe against production sites?**
+Read-only by default — no state-changing requests, ever. Authenticated recon uses only credentials you provide.
 
 ## Star history
 
