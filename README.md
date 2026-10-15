@@ -71,10 +71,6 @@ works and give me a rebuild plan."*
 
 ## How it works
 
-<p align="center">
-  <img src="assets/how-it-works.svg" alt="OmniRecon pipeline: target → rapid recon → deep engines → evidence ledger → rebuild blueprint → verify" width="700" />
-</p>
-
 Sessions persist on disk, so an agent can pause, resume (`recon_status`), run
 long crawls in the background, or cancel (`recon_cancel`).
 
