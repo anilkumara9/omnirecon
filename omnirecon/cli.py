@@ -69,6 +69,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=lambda a: SRV.recon_mock_network(
         a.session, a.url, a.scenario, a.url_pattern))
 
+    p = sub.add_parser("trace-signatures",
+                       help="Trace how sign=/token= params are computed (live JS hooking).")
+    p.add_argument("--session", required=True)
+    p.add_argument("url", help="Page URL to load with crypto hooks armed")
+    p.add_argument("--wait-ms", type=int, default=9000,
+                   help="Observation window after load, in ms")
+    p.set_defaults(func=lambda a: SRV.recon_trace_signatures(
+        a.session, a.url, a.wait_ms))
+
     p = sub.add_parser("recon-status", help="Stage, progress, jobs, ledger stats.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_status(a.session))

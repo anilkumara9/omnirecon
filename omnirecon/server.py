@@ -79,7 +79,7 @@ def _contract(result: dict, unknowns: list[str] | None = None,
     result["truncated"] = False
     if size > _MAX_RESPONSE_CHARS:
         # Truncate the largest list fields first
-        for key in ("spec", "manifest", "findings", "sections"):
+        for key in ("spec", "manifest", "findings", "sections", "signatures"):
             if key in result and isinstance(result[key], (list, dict)):
                 original = result[key]
                 if isinstance(original, list) and len(original) > 20:
@@ -1211,7 +1211,7 @@ def recon_get_graph(session_id: Annotated[str, Field(description="Session ID ret
 @mcp.tool()
 def recon_get_evidence(session_id: Annotated[str, Field(description="Session ID returned by recon_start; every other tool needs it")],
                        finding_id: Annotated[str, Field(description="Exact finding ID like F-0001; empty to filter instead")] = "",
-                       type: Annotated[str, Field(description="Filter by type: route, endpoint, component, asset, schema, tech, state, note, auth")] = "",
+                       type: Annotated[str, Field(description="Filter by type: route, endpoint, component, asset, schema, tech, state, note, auth, signature")] = "",
                        classification: Annotated[str, Field(description="Filter by OBSERVED, SOURCE_VERIFIED, INFERRED, UNVERIFIED, BLOCKED")] = "",
                        query: Annotated[str, Field(description="Free-text search over finding titles and details")] = "") -> dict:
     """Retrieve ledger findings: by ID, by type/classification filter, or by
@@ -1649,6 +1649,88 @@ def recon_mock_network(
 
 
 @mcp.tool()
+def recon_trace_signatures(
+    session_id: Annotated[str, Field(description="Session ID returned by recon_start")],
+    url: Annotated[str, Field(description="Full page URL to load with crypto hooks armed, e.g. https://shop.com/checkout")],
+    wait_ms: Annotated[int, Field(description="How long to observe the page after load, in ms (signing usually fires on load or first interaction). Default 9000")] = 9000,
+) -> dict:
+    """Trace how sign=/token=/checksum= parameters are computed. Arms
+    WebCrypto + CryptoJS + fetch/XHR hooks in the page, then reports WHICH
+    request fields fed into each signature (e.g. sign = HMAC-SHA-256(key,
+    'amount=100&ts=...')) and where in the page's JS it was computed. This
+    answers the #1 real web RE question that passive observation cannot."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not url or not url.strip():
+        return _err("url is required", "invalid_input",
+                    "pass the full page URL as the 'url' argument")
+    url = url.strip()
+
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        return _err("browser engine unavailable", "internal",
+                    "trace_signatures needs the Playwright browser")
+    try:
+        from omnirecon import js_hook as JH
+    except Exception as e:
+        return _err("js_hook module unavailable", "internal", str(e)[:200])
+
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, url,
+                                            session_id, mgr)
+            pid = page.get("page_id")
+            browser.add_init_script(pid, JH.HOOK_SCRIPT)
+            # Reload so hooks run before any page JavaScript
+            browser.goto(url, page_id=pid)
+            import time as _t
+            _t.sleep(max(1.0, min(int(wait_ms or 9000), 30000) / 1000.0))
+            data = browser.evaluate(pid, "window.__omni || null")
+            traced = JH.analyze(data if isinstance(data, dict) else None,
+                                page_url=page.get("url", url))
+        finally:
+            browser.shutdown()
+    except Exception as e:
+        return _err("trace_signatures failed", "internal", str(e)[:300])
+
+    sigs = traced["signatures"]
+    items = []
+    for s in sigs:
+        items.append(_finding(
+            "signature",
+            f"Signature '{s['param']}=' on {s['method']} {s['endpoint']}",
+            f"Computed as {s['algorithm']} over input "
+            f"'{s['input_preview']}'. Input fields: "
+            f"{', '.join(s['input_fields']) or 'not identified'}. "
+            f"Computed in page JS: {s['computed_in'] or 'unknown location'}.",
+            s["classification"], s["confidence"],
+            "live crypto hook captured the exact arguments and call stack",
+            sources=[url], route=url, engine="js-hook",
+            limitations="only signing via WebCrypto/CryptoJS/fetch/XHR is "
+                        "captured; custom obfuscated signers may be missed; "
+                        "signature values redacted to prefix/suffix"))
+    ids = _ledger_add(session_id, mgr, items) if items else []
+    return _contract(
+        {"url": url, "signatures": sigs, "finding_ids": ids,
+         "stats": {"requests_captured": len((data or {}).get("reqs", []))
+                   if isinstance(data, dict) else 0,
+                   "crypto_calls_captured": len((data or {}).get("crypto", []))
+                   if isinstance(data, dict) else 0,
+                   "signed_requests": len(sigs)}},
+        unknowns=traced["unknowns"],
+        limitations=["custom or heavily obfuscated signers may escape the "
+                     "hooks — those cases are reported as UNVERIFIED, never "
+                     "guessed",
+                     "signature values are redacted to prefix/suffix; full "
+                     "values never leave the browser"])
+
+
+@mcp.tool()
 def recon_auto_pilot(
     target: Annotated[str, Field(description="Target to reverse-engineer: full URL (https://...), OpenAPI doc URL, local repo path, or artifact file path")],
     depth: Annotated[str, Field(description="How deep to go: 'quick' (~2 min, rapid recon + top pages), 'standard' (~5 min, + network/UI/sourcemaps), 'deep' (~15 min, + all pages + endpoint probing)")] = "standard",
@@ -1842,6 +1924,11 @@ def recon_auto_pilot(
     if depth == "deep" and main_url:
         _safe("recon_mock_network", recon_mock_network, sid, main_url,
               "api_down")
+
+    # Step 5c: signature tracing (deep only) — how are sign=/token= computed?
+    if depth == "deep" and main_url:
+        _safe("recon_trace_signatures", recon_trace_signatures, sid,
+              main_url)
 
     # Step 6: consistency check + spec
     _safe("recon_verify_consistency", recon_verify_consistency, sid)

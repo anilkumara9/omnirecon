@@ -2,6 +2,18 @@
 
 All notable changes to OmniRecon. Dates are commit dates (UTC).
 
+## v2.2.0 — Signature Tracing (2026-10-15)
+
+**Answer the #1 web RE question: how is `sign=` computed?**
+`recon_trace_signatures` live-hooks the page's crypto (WebCrypto
+`digest`/`sign`, CryptoJS HMAC/SHA/MD5) and network (fetch/XHR) in the owned
+browser, then correlates each signed request with the crypto call that ran
+just before it — reporting the algorithm, which request fields fed the
+signature input, and the exact page-JS line that computed it. Autopilot
+`deep` mode runs it automatically. Signature values are redacted to
+prefix/suffix; uncaptured signers are reported UNVERIFIED, never guessed.
+24 tools.
+
 ## v2.1.0 — Edge States (2026-10-15)
 
 **See the UI nobody crawls.** `recon_mock_network` mocks API responses

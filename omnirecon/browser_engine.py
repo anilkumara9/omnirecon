@@ -735,6 +735,21 @@ class AsyncOwnedBrowser:
     # empty responses. This is how you see the 2-3x more UI that only exists
     # in error/empty/loading states — invisible to passive crawling.
 
+    async def add_init_script(self, page_id: int, script: str) -> dict:
+        """Install a JS init script that runs before any page script.
+
+        Used by js_hook to arm crypto/network hooks; applies to all
+        subsequent navigations of the page (reload to take effect).
+        """
+        entry = self._get_page_entry(page_id)
+        await entry["page"].add_init_script(script=script)
+        return {"ok": True}
+
+    async def evaluate(self, page_id: int, expression: str):
+        """Evaluate a JS expression in the page and return the value."""
+        entry = self._get_page_entry(page_id)
+        return await entry["page"].evaluate(expression)
+
     async def intercept(self, page_id: int, pattern: str, action: str,
                         status: int = 500, body: str = "",
                         delay_ms: int = 0) -> dict:
@@ -1216,6 +1231,12 @@ class OwnedBrowser:
         return self._run(self._impl.intercept(
             page_id, pattern, action, status=status, body=body,
             delay_ms=delay_ms))
+
+    def add_init_script(self, page_id: int, script: str) -> dict:
+        return self._run(self._impl.add_init_script(page_id, script))
+
+    def evaluate(self, page_id: int, expression: str):
+        return self._run(self._impl.evaluate(page_id, expression))
 
     def clear_intercepts(self, page_id: int) -> dict:
         return self._run(self._impl.clear_intercepts(page_id))

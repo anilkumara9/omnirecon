@@ -15,7 +15,8 @@ how its key workflows behave, and a prioritized plan to rebuild it.
 
 **`recon_auto_pilot(target, depth="standard")` runs the entire pipeline in one
 call** — rapid recon → route discovery → deep page inspection → network
-capture → UI analysis → sourcemaps → endpoint probing → spec generation — and
+capture → UI analysis → edge-state mocking + signature tracing (deep) →
+sourcemaps → endpoint probing → spec generation — and
 returns a build-ready blueprint with `spec.sections` and a
 `manifest` (`build_tasks` + `research_tasks`). Each step is isolated: one
 failing tool never kills the pipeline. Prefer this over orchestrating the

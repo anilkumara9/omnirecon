@@ -12,15 +12,15 @@
   <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
-  <img src="https://img.shields.io/badge/tools-23-green" alt="23 tools" />
+  <img src="https://img.shields.io/badge/tools-24-green" alt="24 tools" />
 </p>
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
 
-<p align="center"><b>v2.1: one tool call reverse-engineers anything.</b><br/>
+<p align="center"><b>v2.2: one tool call reverse-engineers anything.</b><br/>
 <code>recon_auto_pilot("https://target.com")</code> runs the full pipeline —
 rapid recon, route discovery, deep browser inspection, network capture, UI
-analysis, edge-state mocking, endpoint probing — and returns a build-ready
+analysis, edge-state mocking, <b>JS signature tracing</b>, endpoint probing — and returns a build-ready
 blueprint with <code>unknowns</code> and <code>limitations</code> on every
 response. No orchestration needed.</p>
 
@@ -52,7 +52,7 @@ works and give me a rebuild plan."*
 - [How it works](#how-it-works)
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
-- [The 23 tools](#the-23-tools)
+- [The 24 tools](#the-24-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
@@ -88,8 +88,9 @@ the appropriate engine.
 
 | | OmniRecon | REA | Burp Suite + DevTools |
 |---|---|---|---|
-| Built for AI coding agents | ✅ 23 MCP tools + skill doc | ❌ CLI for humans | ❌ human-driven |
+| Built for AI coding agents | ✅ 24 MCP tools + skill doc | ❌ CLI for humans | ❌ human-driven |
 | One-call full pipeline | ✅ `recon_auto_pilot` | ❌ | ❌ |
+| JS signature tracing (how is `sign=` computed?) | ✅ live hooking | ❌ | ❌ manual |
 | Autonomous web driving (crawl, click, capture) | ✅ | ❌ deliberately passive | ❌ manual |
 | Edge-state UI (mock API failures, capture degraded UI) | ✅ | ❌ | ❌ manual |
 | Output contract (unknowns + limitations on every response) | ✅ | ✅ | ❌ |
@@ -142,11 +143,12 @@ its evidence.
 — a complete session (evidence ledger, 15-section spec, design tokens,
 screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
-## The 23 tools
+## The 24 tools
 
 | Tool | What it does |
 |---|---|
 | `recon_auto_pilot` | **One-call full pipeline**: rapid recon → routes → deep inspection → network → UI → spec. Returns build-ready blueprint. |
+| `recon_trace_signatures` | **Signature tracing**: live-hooks the page's crypto (WebCrypto/CryptoJS) + fetch/XHR and reports *how* each `sign=`/`token=` is computed — algorithm, which fields fed the input, and the exact JS line. |
 | `recon_mock_network` | **Edge-state revelator**: mock API failures/slowness, capture error/empty/loading UI. |
 | `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Targets: web URL, OpenAPI document URL, repo dir/git URL, APK/IPA/binary/JS-bundle file. Returns `session_id`. |
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
@@ -241,7 +243,7 @@ Run the server (stdio transport — your agent connects to this, not you directl
 ```
 
 It waits silently for MCP input; that's normal. To verify everything works
-from your terminal instead, use the CLI (same 23 tools):
+from your terminal instead, use the CLI (same 24 tools):
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -316,7 +318,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 23 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 24 tools.
 
 ### Cursor
 
@@ -372,7 +374,7 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 23 tools are mirrored as CLI commands running the same code — useful for
+All 24 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash
