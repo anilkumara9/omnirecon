@@ -57,6 +57,9 @@ def _detect_target_kind(target: str) -> tuple[str, str]:
     t = (target or "").strip()
     if not t:
         raise ReconError("target must not be empty", code="invalid_target")
+    # Remote git URL → repo pipeline (check before generic URL)
+    if t.endswith(".git") or re.match(r"^[\w.\-]+@[\w.\-]+:", t):
+        return "repo", t  # remote git URL — analyze_codebase clones it
     # OpenAPI / Swagger document URL → API pipeline
     if re.match(r"^https?://", t, re.IGNORECASE) and re.search(
             r"(openapi|swagger)[.\-_].*\.json$|\.ya?ml$|/openapi\.json$|/swagger\.json$",
@@ -73,8 +76,6 @@ def _detect_target_kind(target: str) -> tuple[str, str]:
         # Any other file → treat as a single-file artifact target anyway;
         # the analyzer reports its type honestly.
         return "artifact", os.path.abspath(expanded)
-    if t.endswith(".git") or re.match(r"^[\w.\-]+@[\w.\-]+:", t):
-        return "repo", t  # remote git URL — analyze_codebase clones it
     if t.startswith(("/", ".", "~")):
         raise ReconError(f"local path does not exist: {t}", code="invalid_target",
                          hint="Pass an http(s) URL, a local directory, a git URL, "

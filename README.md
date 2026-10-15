@@ -51,7 +51,7 @@ works and give me a rebuild plan."*
 - [How it works](#how-it-works)
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
-- [The 22 tools](#the-21-tools)
+- [The 22 tools](#the-22-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
@@ -234,7 +234,7 @@ Run the server (stdio transport — your agent connects to this, not you directl
 ```
 
 It waits silently for MCP input; that's normal. To verify everything works
-from your terminal instead, use the CLI (same 21 tools):
+from your terminal instead, use the CLI (same 22 tools):
 
 ```bash
 .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
@@ -309,7 +309,7 @@ command = "/path/to/omnirecon/.venv/bin/python"
 args = ["/path/to/omnirecon/omnirecon/server.py"]
 ```
 
-Restart Codex. Verify with `/mcp` — `omnirecon` should list 21 tools.
+Restart Codex. Verify with `/mcp` — `omnirecon` should list 22 tools.
 
 ### Cursor
 
@@ -365,7 +365,7 @@ Any client that speaks MCP over stdio works: register a server with
 
 ### No MCP support? Use the CLI
 
-All 21 tools are mirrored as CLI commands running the same code — useful for
+All 22 tools are mirrored as CLI commands running the same code — useful for
 scripts, CI, or agents without MCP:
 
 ```bash
