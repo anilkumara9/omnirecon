@@ -481,6 +481,14 @@ def recon_discover_routes(session_id: Annotated[str, Field(description="Session 
                 f"kind={e['kind']} scope={e['scope']} discovered across crawled pages",
                 "OBSERVED", 0.75, "endpoint literal found in crawled page/JS text",
                 sources=[target], endpoint=e["endpoint"], engine="static"))
+        # Client-side routes from JS bundles (hash routes, router definitions)
+        for cr in crawl.get("client_routes", [])[:60]:
+            items.append(_finding(
+                "route", f"Client route {cr}",
+                "route definition extracted from JS bundle; not fetched via "
+                "HTTP (SPA client-side navigation)",
+                "INFERRED", 0.7, "route path literal in JS bundle",
+                sources=[target], route=cr, engine="static"))
         ids = _ledger_add(session_id, mgr, items)
         try:
             mgr.update_stage(session_id, 3)
@@ -556,12 +564,41 @@ def recon_inspect_page(session_id: Annotated[str, Field(description="Session ID 
         return _err("browser inspection failed", "internal", str(e)[:300])
 
     snap = _redact(snap)
-    items = [_finding(
+    # Login-wall detection: if the rendered page is an auth gate, say so
+    # loudly instead of silently speccing the login form as the app.
+    _is_login_wall = False
+    _final_url = (snap.get("url") or url).lower()
+    for form in snap.get("forms", []) or []:
+        for inp in form.get("inputs", []) or []:
+            if (inp.get("type") or "").lower() == "password":
+                _is_login_wall = True
+                break
+        if _is_login_wall:
+            break
+    if "/login" in _final_url or "/signin" in _final_url or "/auth" in _final_url:
+        # Only flag if the requested URL wasn't itself a login page
+        _req_lower = url.lower()
+        if "/login" not in _req_lower and "/signin" not in _req_lower \
+                and "/auth" not in _req_lower:
+            _is_login_wall = True
+    items = []
+    if _is_login_wall:
+        items.append(_finding(
+            "auth", f"Login wall at {url}",
+            f"Rendered page is an authentication gate, not the app "
+            f"(password field present; final URL {_final_url[:80]}). "
+            f"Routes, components, and workflows behind the wall are UNVERIFIED. "
+            f"Use recon_authenticate with operator credentials to proceed, "
+            f"or treat authed areas as BLOCKED.",
+            "BLOCKED", 0.95, "password input and/or auth redirect observed",
+            sources=[url], route=url,
+            limitations="content behind the login wall was not inspected"))
+    items.append(_finding(
         "route", f"Inspected {snap.get('url', url)}",
         f"title={snap.get('title')!r} controls={len(snap.get('controls', []))} "
         f"forms={len(snap.get('forms', []))}",
         "OBSERVED", 0.9, "rendered in owned browser",
-        sources=[url], route=snap.get("url", url), engine="rendered")]
+        sources=[url], route=snap.get("url", url), engine="rendered"))
     for form in snap.get("forms", [])[:10]:
         items.append(_finding(
             "component", f"Form -> {form.get('action')}",
@@ -1532,8 +1569,116 @@ def recon_auto_pilot(
         return {"error": "autopilot failed at recon_start",
                 "detail": failed, "tools_run": ran}
     sid = start["session_id"]
+    target_kind = start.get("target_kind", "url")
 
-    # Step 2: discover routes
+    # Branch on target kind: repos, artifacts, and API specs get their
+    # dedicated engines, not the web crawl pipeline.
+    if target_kind == "repo":
+        _safe("recon_analyze_source", recon_analyze_source, sid, target)
+        _safe("recon_verify_consistency", recon_verify_consistency, sid)
+        spec_out = _safe("recon_generate_spec", recon_generate_spec, sid)
+        elapsed = round(time.time() - t0, 1)
+        ev2 = recon_get_evidence(sid)
+        findings = ev2.get("findings", []) if isinstance(ev2, dict) else []
+        by_class = {}
+        for f in findings:
+            c = f.get("classification", "?")
+            by_class[c] = by_class.get(c, 0) + 1
+        result = {
+            "session_id": sid, "target": target, "target_kind": target_kind,
+            "depth": depth, "elapsed_s": elapsed,
+            "tools_run": ran, "tools_failed": failed,
+            "evidence": {"total": len(findings), "by_classification": by_class},
+        }
+        if spec_out:
+            result["spec"] = spec_out.get("sections", {})
+            result["manifest"] = spec_out.get("manifest", {})
+            result["manifest_path"] = spec_out.get("manifest_path", "")
+            manifest = spec_out.get("manifest", {}) or {}
+            build = manifest.get("build_tasks", [])
+            research = manifest.get("research_tasks", [])
+            result["next_steps"] = (
+                f"Build {len(build)} tasks in manifest['build_tasks'] order. "
+                f"{len(research)} research gaps to resolve. "
+                f"Full blueprint in spec.sections.")
+        return result
+
+    if target_kind == "artifact":
+        _safe("recon_analyze_artifact", recon_analyze_artifact, sid, target)
+        _safe("recon_verify_consistency", recon_verify_consistency, sid)
+        spec_out = _safe("recon_generate_spec", recon_generate_spec, sid)
+        elapsed = round(time.time() - t0, 1)
+        ev2 = recon_get_evidence(sid)
+        findings = ev2.get("findings", []) if isinstance(ev2, dict) else []
+        by_class = {}
+        for f in findings:
+            c = f.get("classification", "?")
+            by_class[c] = by_class.get(c, 0) + 1
+        result = {
+            "session_id": sid, "target": target, "target_kind": target_kind,
+            "depth": depth, "elapsed_s": elapsed,
+            "tools_run": ran, "tools_failed": failed,
+            "evidence": {"total": len(findings), "by_classification": by_class},
+        }
+        if spec_out:
+            result["spec"] = spec_out.get("sections", {})
+            result["manifest"] = spec_out.get("manifest", {})
+            result["manifest_path"] = spec_out.get("manifest_path", "")
+            manifest = spec_out.get("manifest", {}) or {}
+            build = manifest.get("build_tasks", [])
+            research = manifest.get("research_tasks", [])
+            result["next_steps"] = (
+                f"Build {len(build)} tasks in manifest['build_tasks'] order. "
+                f"{len(research)} research gaps to resolve. "
+                f"Full blueprint in spec.sections.")
+        return result
+
+    if target_kind == "api_spec":
+        # Probe against the API's servers[0], not the spec document URL.
+        base_url = ""
+        try:
+            from omnirecon import api_intel as AI
+            info = AI.analyze_api_spec(target)
+            servers = (info.get("servers") or [])
+            if servers:
+                base_url = servers[0].get("url", "") or ""
+        except Exception:
+            pass
+        if depth != "quick":
+            if base_url:
+                _safe("recon_probe_endpoints", recon_probe_endpoints,
+                       sid, base_url)
+            else:
+                _safe("recon_probe_endpoints", recon_probe_endpoints, sid)
+        _safe("recon_verify_consistency", recon_verify_consistency, sid)
+        spec_out = _safe("recon_generate_spec", recon_generate_spec, sid)
+        elapsed = round(time.time() - t0, 1)
+        ev2 = recon_get_evidence(sid)
+        findings = ev2.get("findings", []) if isinstance(ev2, dict) else []
+        by_class = {}
+        for f in findings:
+            c = f.get("classification", "?")
+            by_class[c] = by_class.get(c, 0) + 1
+        result = {
+            "session_id": sid, "target": target, "target_kind": target_kind,
+            "depth": depth, "elapsed_s": elapsed,
+            "tools_run": ran, "tools_failed": failed,
+            "evidence": {"total": len(findings), "by_classification": by_class},
+        }
+        if spec_out:
+            result["spec"] = spec_out.get("sections", {})
+            result["manifest"] = spec_out.get("manifest", {})
+            result["manifest_path"] = spec_out.get("manifest_path", "")
+            manifest = spec_out.get("manifest", {}) or {}
+            build = manifest.get("build_tasks", [])
+            research = manifest.get("research_tasks", [])
+            result["next_steps"] = (
+                f"Build {len(build)} tasks in manifest['build_tasks'] order. "
+                f"{len(research)} research gaps to resolve. "
+                f"Full blueprint in spec.sections.")
+        return result
+
+    # Step 2: discover routes (url targets only)
     disc = _safe("recon_discover_routes", recon_discover_routes, sid,
                  max_pages=max_pages * 8 if depth == "deep" else 40,
                  max_depth=3)

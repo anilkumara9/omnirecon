@@ -336,6 +336,16 @@ def _functional_requirements(findings: list[dict]) -> dict:
             "flow derived from observed workflow"))
     for f in _by_type(findings, "endpoint"):
         if f.get("endpoint"):
+            # Binary-mined URLs are strings in a binary, not confirmed APIs.
+            if f.get("engine") == "binary":
+                bullets.append(_b(
+                    f"STRING-MINED URL (unconfirmed): {f.get('endpoint')}\n"
+                    "Found as a string inside a shipped binary, not observed "
+                    "in live traffic. Verify it is a real API before integrating "
+                    "— it may be analytics, crash reporting, or dead code.",
+                    [f.get("id")] if f.get("id") else [], "UNVERIFIED", 0.4,
+                    "string extracted from binary; no live traffic observed"))
+                continue
             bullets.append(_b(
                 f"WIRE UP: {f.get('endpoint')}\n"
                 "The UI calls this. Your rebuild must serve the same shape "

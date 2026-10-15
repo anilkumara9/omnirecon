@@ -448,6 +448,8 @@ def crawl_site(start_url: str, max_pages: int = 30, max_depth: int = 2) -> dict:
     pages: list[dict] = []
     api_index: dict[str, dict] = {}
     js_bundles: list[str] = []
+    client_routes: list[str] = []
+    seen_urls: set[str] = set()
 
     with _client(timeout=20) as c:
         while queue and len(pages) < max_pages:
@@ -508,13 +510,26 @@ def crawl_site(start_url: str, max_pages: int = 30, max_depth: int = 2) -> dict:
             try:
                 jr = c.get(js, timeout=25)
                 if jr.status_code == 200 and len(jr.content) <= 1_500_000:
-                    eps = extract_endpoints_from_text(jr.text[:2_000_000], js)
+                    jstext = jr.text[:2_000_000]
+                    eps = extract_endpoints_from_text(jstext, js)
                     for e in eps["internal"] + eps["external"]:
                         # API-kind findings from JS win over page-text guesses
                         prev = api_index.get(e["endpoint"])
                         if prev is None or (prev.get("kind") != "api"
                                             and e.get("kind") == "api"):
                             api_index[e["endpoint"]] = e
+                    # Client-side route table: SPAs define routes in JS that
+                    # the <a href> crawler never sees (hash routes, router.push).
+                    for rm in re.finditer(
+                            r'(?:path\s*:\s*["\'](/[a-zA-Z0-9_\-/:*]+)["\']|'
+                            r'<Route\s+[^>]*path=["\'](/[a-zA-Z0-9_\-/:*]+)["\']|'
+                            r'#(/[a-zA-Z0-9_\-/]+))', jstext):
+                        rp = rm.group(1) or rm.group(2) or rm.group(3)
+                        if rp and len(rp) > 1:
+                            full = start_url.rstrip("/") + rp
+                            if full not in seen_urls:
+                                seen_urls.add(full)
+                                client_routes.append(full)
                     js_analyzed += 1
             except Exception:
                 continue
@@ -529,6 +544,7 @@ def crawl_site(start_url: str, max_pages: int = 30, max_depth: int = 2) -> dict:
         "pages": pages,
         "js_bundles_found": len(js_bundles),
         "js_bundles_analyzed": js_analyzed,
+        "client_routes": sorted(set(client_routes)),
     }
 
 
