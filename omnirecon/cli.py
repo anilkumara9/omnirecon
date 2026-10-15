@@ -202,23 +202,187 @@ def build_parser() -> argparse.ArgumentParser:
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_deauthenticate(a.session))
 
-    p = sub.add_parser("setup", help="Generate MCP client config with correct paths (no copy-paste errors).")
-    p.add_argument("client", choices=["claude-code", "codex", "cursor", "windsurf", "zed", "generic"],
-                   help="Which agent/IDE to configure.")
+    p = sub.add_parser("setup", help="Configure your agent to use OmniRecon (writes the config for you).")
+    p.add_argument("client", choices=["claude-code", "codex", "cursor", "windsurf", "zed", "generic", "auto"],
+                   help="Which agent/IDE to configure; 'auto' configures every client found on this machine.")
     p.add_argument("--project", default="",
-                   help="For claude-code: project dir to scope the config to (writes .mcp.json there).")
+                   help="For claude-code: project dir to scope the config to (writes .mcp.json there). Defaults to the current directory.")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Print what would be done without writing anything.")
     p.set_defaults(func=_setup_client)
 
     return ap
 
 
-def _setup_client(a) -> dict:
-    """Generate MCP config with auto-detected absolute paths.
-
-    Eliminates the #1 first-run failure: wrong paths in the client config.
-    """
+def _detect_clients() -> list:
+    """Best-effort detection of installed agent clients."""
     import shutil
+    found = []
+    if shutil.which("claude"):
+        found.append("claude-code")
+    home = os.path.expanduser("~")
+    if os.path.isdir(os.path.join(home, ".codex")):
+        found.append("codex")
+    if shutil.which("cursor") or os.path.isdir(os.path.join(home, ".cursor")):
+        found.append("cursor")
+    if os.path.isdir(os.path.join(home, ".codeium")):
+        found.append("windsurf")
+    if shutil.which("zed") or os.path.isfile(
+            os.path.join(home, ".config", "zed", "settings.json")):
+        found.append("zed")
+    return found
 
+
+def _merge_mcp_json(path: str, key: str, entry: dict,
+                    dry_run: bool = False) -> dict:
+    """Merge {"<key>": {"omnirecon": entry}} into a JSON config file.
+
+    Idempotent: a second run changes nothing. An unparseable existing file
+    is backed up (.omnirecon.bak) rather than destroyed.
+    """
+    import json
+    action = {"path": path}
+    cfg = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                raw = fh.read().strip()
+            cfg = json.loads(raw) if raw else {}
+        except Exception:
+            bak = path + ".omnirecon.bak"
+            import shutil
+            shutil.copy2(path, bak)
+            action["backup"] = bak
+            cfg = {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    servers = cfg.get(key)
+    if not isinstance(servers, dict):
+        servers = {}
+        cfg[key] = servers
+    if servers.get("omnirecon") == entry:
+        action["changed"] = False
+        action["note"] = "already configured"
+        return action
+    if dry_run:
+        action["changed"] = True
+        action["note"] = "dry-run: would write"
+        action["content"] = {key: {"omnirecon": entry}}
+        return action
+    servers["omnirecon"] = entry
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+        fh.write("\n")
+    action["changed"] = True
+    action["note"] = "written"
+    return action
+
+
+def _ensure_codex_toml(path: str, python: str, server_py: str,
+                       dry_run: bool = False) -> dict:
+    """Append the omnirecon server block to Codex's config.toml (idempotent)."""
+    action = {"path": path}
+    snippet = ("[mcp_servers.omnirecon]\n"
+               f"command = \"{python}\"\n"
+               f"args = [\"{server_py}\"]\n")
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as fh:
+            if "[mcp_servers.omnirecon]" in fh.read():
+                action["changed"] = False
+                action["note"] = "already configured"
+                return action
+    if dry_run:
+        action["changed"] = True
+        action["note"] = "dry-run: would append"
+        action["content"] = snippet
+        return action
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    needs_nl = os.path.isfile(path) and os.path.getsize(path) > 0
+    with open(path, "a", encoding="utf-8") as fh:
+        if needs_nl:
+            fh.write("\n")
+        fh.write(snippet)
+    action["changed"] = True
+    action["note"] = "appended"
+    return action
+
+
+def _setup_one_client(client: str, python: str, server_py: str,
+                      project: str, dry_run: bool) -> dict:
+    """Configure a single client. Returns a result dict for that client."""
+    import shutil
+    import subprocess
+    home = os.path.expanduser("~")
+    entry = {"command": python, "args": [server_py]}
+
+    if client == "claude-code":
+        claude = shutil.which("claude")
+        if claude:
+            cmd = [claude, "mcp", "add", "omnirecon", "--", python, server_py]
+            if dry_run:
+                return {"client": client, "changed": True,
+                        "note": "dry-run: would run: " + " ".join(cmd)}
+            try:
+                proc = subprocess.run(cmd, capture_output=True, text=True,
+                                      timeout=60)
+            except Exception as e:
+                return {"client": client, "changed": False,
+                        "error": f"could not run 'claude mcp add': {e}"}
+            if proc.returncode == 0:
+                return {"client": client, "changed": True,
+                        "note": "registered via 'claude mcp add'",
+                        "restart": "restart Claude Code"}
+            return {"client": client, "changed": False,
+                    "error": (proc.stderr or proc.stdout or
+                              "'claude mcp add' failed")[:300]}
+        target = os.path.join(project or os.getcwd(), ".mcp.json")
+        res = _merge_mcp_json(target, "mcpServers", entry, dry_run)
+        res["client"] = client
+        res["restart"] = "restart Claude Code (project .mcp.json is picked up automatically)"
+        return res
+
+    if client == "codex":
+        res = _ensure_codex_toml(os.path.join(home, ".codex", "config.toml"),
+                                 python, server_py, dry_run)
+        res["client"] = client
+        res["restart"] = "restart Codex"
+        return res
+
+    if client == "zed":
+        res = _merge_mcp_json(
+            os.path.join(home, ".config", "zed", "settings.json"),
+            "context_servers", entry, dry_run)
+        res["client"] = client
+        res["restart"] = "restart Zed"
+        return res
+
+    homes = {"cursor": os.path.join(home, ".cursor", "mcp.json"),
+             "windsurf": os.path.join(home, ".codeium", "windsurf",
+                                      "mcp_config.json")}
+    if client in homes:
+        res = _merge_mcp_json(homes[client], "mcpServers", entry, dry_run)
+        res["client"] = client
+        res["restart"] = f"restart {client}"
+        return res
+
+    # generic: nothing to write to; print the block.
+    return {"client": client, "changed": False,
+            "note": "add this to your MCP client's config, then restart it",
+            "content": {"mcpServers": {"omnirecon": entry}}}
+
+
+def _setup_client(a) -> dict:
+    """Configure agent client(s) to use OmniRecon — actually writes the
+    config files, so setup is one command with no manual JSON editing.
+
+    Eliminates the #1 first-run failure: wrong paths in the client config
+    (paths are auto-detected from this install).
+    """
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     server_py = os.path.join(root, "omnirecon", "server.py")
     # Prefer the venv Python next to the project, else the current interpreter.
@@ -236,48 +400,18 @@ def _setup_client(a) -> dict:
         return {"error": "; ".join(problems), "code": "setup_failed",
                 "hint": "Run ./install.sh (or install.bat on Windows) first."}
 
-    entry = {"command": python, "args": [server_py]}
-    client = a.client
-
-    if client == "claude-code":
-        # Prefer the CLI if available; fall back to printing the JSON.
-        claude = shutil.which("claude")
-        if claude and not a.project:
-            return {"action": "run",
-                    "command": [claude, "mcp", "add", "omnirecon", "--",
-                                python, server_py],
-                    "note": "Run this command to register OmniRecon with Claude Code."}
-        cfg = {"mcpServers": {"omnirecon": entry}}
-        target = os.path.join(a.project or root, ".mcp.json")
-        return {"action": "write", "path": target,
-                "content": cfg,
-                "note": f"Write this JSON to {target} (project-scoped for Claude Code)."}
-
-    if client == "codex":
-        snippet = ("[mcp_servers.omnirecon]\n"
-                   f"command = \"{python}\"\n"
-                   f"args = [\"{server_py}\"]\n")
-        return {"action": "append",
-                "path": os.path.expanduser("~/.codex/config.toml"),
-                "content": snippet,
-                "note": "Add to ~/.codex/config.toml, then restart Codex."}
-
-    if client == "zed":
-        cfg = {"context_servers": {"omnirecon": entry}}
-        return {"action": "merge",
-                "path": os.path.expanduser("~/.config/zed/settings.json"),
-                "content": cfg,
-                "note": "Merge context_servers into your Zed settings.json, then restart Zed."}
-
-    # cursor / windsurf / generic: same mcpServers shape, different homes
-    homes = {"cursor": os.path.expanduser("~/.cursor/mcp.json"),
-             "windsurf": os.path.expanduser("~/.codeium/windsurf/mcp_config.json"),
-             "generic": "<your-client-mcp-config.json>"}
-    cfg = {"mcpServers": {"omnirecon": entry}}
-    return {"action": "merge",
-            "path": homes[client],
-            "content": cfg,
-            "note": f"Merge mcpServers into {homes[client]}, then restart {client}."}
+    clients = _detect_clients() if a.client == "auto" else [a.client]
+    if a.client == "auto" and not clients:
+        return {"error": "no supported agent client detected",
+                "code": "setup_failed",
+                "hint": "Install Claude Code, Codex, Cursor, Windsurf or Zed, "
+                        "or run with an explicit client name."}
+    results = [_setup_one_client(c, python, server_py, a.project, a.dry_run)
+               for c in clients]
+    ok = [r for r in results if r.get("changed")]
+    return {"ok": True, "clients": results,
+            "summary": f"{len(ok)}/{len(results)} client(s) configured",
+            "dry_run": bool(a.dry_run)}
 
 
 def main(argv=None) -> int:

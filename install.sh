@@ -2,14 +2,20 @@
 #
 # OmniRecon one-command installer.
 #
-#   ./install.sh
+#   ./install.sh [--client <name|auto>]
+#
+# Or straight from the internet, no clone needed:
+#   curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh \
+#     | bash -s -- --client auto
 #
 # What it does:
-#   1. Checks for python3 (>= 3.10)
-#   2. Creates .venv/ in the repo root (reuses it if present)
-#   3. Installs requirements.txt into the venv
-#   4. Installs Playwright's Chromium (~300MB, skipped if already present)
-#   5. Verifies the install and prints how to connect your agent
+#   1. (curl-pipe only) clones the repo to ~/omnirecon
+#   2. Checks for python3 (>= 3.10)
+#   3. Creates .venv/ in the repo root (reuses it if present)
+#   4. Installs requirements.txt into the venv
+#   5. Installs Playwright's Chromium (~300MB, skipped if already present)
+#   6. Verifies the install
+#   7. With --client: configures your agent automatically (no manual JSON)
 #
 # Idempotent: safe to re-run; steps that are already done are skipped.
 # No machine-specific paths: everything resolves relative to this script.
@@ -18,8 +24,44 @@ set -euo pipefail
 # -- helpers ---------------------------------------------------------------
 info()  { printf '\033[1;34m[omnirecon]\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m[ok]\033[0m %s\n' "$*"; }
-warn()  { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
+warn()  { printf '\033[1;33m[warn]\033[0m %s\n' "$*" >&2; }
 fail()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
+
+# -- flags -----------------------------------------------------------------
+CLIENT=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --client=*) CLIENT="${1#--client=}"; shift ;;
+        --client) CLIENT="${2:-}"; shift 2 ;;
+        -h|--help)
+            echo "Usage: ./install.sh [--client <claude-code|codex|cursor|windsurf|zed|generic|auto>]"
+            echo "   or: curl -fsSL .../install.sh | bash -s -- --client auto"
+            exit 0 ;;
+        *) fail "unknown flag: $1 (try --help)" ;;
+    esac
+done
+
+# -- curl-pipe bootstrap -----------------------------------------------------
+# When piped via curl, this script isn't inside the repo yet. Clone it and
+# re-exec from the clone so the rest of the script is unchanged.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd 2>/dev/null || echo "")"
+if [ ! -f "$_SCRIPT_DIR/requirements.txt" ]; then
+    DEST="${OMNIRECON_DIR:-$HOME/omnirecon}"
+    if [ -f "$DEST/requirements.txt" ]; then
+        info "found existing checkout at $DEST"
+    else
+        command -v git >/dev/null 2>&1 \
+            || fail "git not found — install git first: https://git-scm.com/downloads"
+        info "cloning OmniRecon to $DEST ..."
+        git clone --depth 1 https://github.com/anilkumara9/omnirecon.git "$DEST" \
+            || fail "git clone failed — check your network connection."
+    fi
+    if [ -n "$CLIENT" ]; then
+        exec bash "$DEST/install.sh" --client="$CLIENT"
+    else
+        exec bash "$DEST/install.sh"
+    fi
+fi
 
 # Repo root = directory containing this script (no hardcoded paths).
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -96,11 +138,41 @@ EOF
 ok "OmniRecon installed — $TOOL_COUNT MCP tools available"
 
 # -- next steps --------------------------------------------------------------
-cat <<EOF
+if [ -n "$CLIENT" ]; then
+    info "configuring agent client: $CLIENT ..."
+    if "$PY" -m omnirecon.cli setup "$CLIENT" >/tmp/omnirecon_setup.json 2>&1; then
+        ok "agent configured"
+        "$PY" -c "
+import json
+r = json.load(open('/tmp/omnirecon_setup.json'))
+for c in r.get('clients', []):
+    name = c.get('client', '?')
+    if c.get('changed'):
+        print(f'  [ok] {name}: {c.get(\"note\", \"configured\")}')
+    elif c.get('error'):
+        print(f'  [warn] {name}: {c[\"error\"]}')
+    else:
+        print(f'  [ok] {name}: {c.get(\"note\", \"ok\")}')
+    if c.get('restart'):
+        print(f'       -> {c[\"restart\"]}')
+" 2>/dev/null || true
+    else
+        warn "automatic client setup had issues — run this yourself:"
+        warn "  $PY -m omnirecon.cli setup $CLIENT"
+    fi
+    cat <<EOF
 
-  Installation complete. Connect your agent with zero path mistakes:
+  Done. Restart your agent, then ask it:
+    "Reverse-engineer https://example.com"
+EOF
+else
+    cat <<EOF
 
-    $PY -m omnirecon.cli setup claude-code   # or: codex, cursor, windsurf, zed, generic
+  Installation complete. Connect your agent with one command (no manual JSON):
+
+    $PY -m omnirecon.cli setup auto
+
+  Or pick a client explicitly: claude-code, codex, cursor, windsurf, zed, generic.
 
   No MCP client? Use the terminal instead:
     $PY -m omnirecon.cli recon-start https://example.com --mode fast
@@ -108,3 +180,4 @@ cat <<EOF
   Note: browser tools take 30-60s per page (real Chromium) — that's normal.
   Full guide: $REPO_ROOT/README.md ("Connecting your agent")
 EOF
+fi

@@ -21,3 +21,7 @@ venv/
 
 # Personal working docs (not part of the project)
 LAUNCH_DRAFTS.md
+
+# Project-scoped MCP config written by `omnirecon.cli setup claude-code`
+# (machine-specific absolute paths — never commit)
+.mcp.json

@@ -2,6 +2,23 @@
 
 All notable changes to OmniRecon. Dates are commit dates (UTC).
 
+## v2.2.1 — One-Command Setup (2026-10-15)
+
+**Zero-headache install.** One command does everything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh \
+  | bash -s -- --client auto
+```
+
+No clone needed (the script clones itself when piped), and `--client`
+configures your agent automatically — `omnirecon.cli setup` now *writes*
+the MCP config instead of telling you what to write: `auto` detects every
+installed client (Claude Code, Codex, Cursor, Windsurf, Zed) and merges the
+config idempotently (existing entries never duplicated, unparseable files
+backed up). `install.bat` takes the client as an argument on Windows.
+185 tests.
+
 ## v2.2.0 — Signature Tracing (2026-10-15)
 
 **Answer the #1 web RE question: how is `sign=` computed?**

@@ -225,21 +225,44 @@ if __name__ == "__main__":
 
 
 def test_setup_generates_valid_config():
+    import tempfile
     from omnirecon import cli as CLI
     ap = CLI.build_parser()
-    for client in ["claude-code", "codex", "cursor", "windsurf", "zed", "generic"]:
-        args = ap.parse_args(["setup", client])
+    # Never touch the real HOME: setup now WRITES configs.
+    old_home = os.environ.get("HOME")
+    tmp = tempfile.mkdtemp(prefix="omnirecon_setup_test_")
+    os.environ["HOME"] = tmp
+    try:
+        for client in ["claude-code", "codex", "cursor", "windsurf", "zed",
+                       "generic"]:
+            args = ap.parse_args(["setup", client, "--dry-run"])
+            res = args.func(args)
+            assert "error" not in res, (client, res)
+            assert res.get("ok") is True, (client, res)
+            per = res["clients"][0]
+            content = per.get("content")
+            if isinstance(content, dict):
+                entry = (content.get("mcpServers", {}).get("omnirecon")
+                         or content.get("context_servers", {}).get("omnirecon"))
+                assert entry, (client, content)
+                assert os.path.isfile(entry["command"]), entry["command"]
+                assert os.path.isfile(entry["args"][0]), entry["args"]
+            else:
+                # dry-run for file-writing clients: no content, just a note.
+                # "already configured" is also fine (idempotency).
+                assert per.get("note", "").startswith("dry-run") or \
+                    per.get("note") == "already configured", (client, per)
+        # Real write path for one client; verify the written JSON on disk.
+        args = ap.parse_args(["setup", "cursor"])
         res = args.func(args)
-        assert "error" not in res, (client, res)
-        assert res["action"] in ("run", "write", "append", "merge"), res
-        content = res["content"]
-        # every variant must carry a real, existing python + server.py
-        import os
-        if isinstance(content, dict):
-            entry = content.get("mcpServers", {}).get("omnirecon") or \
-                content.get("context_servers", {}).get("omnirecon")
-            assert entry, (client, content)
-            assert os.path.isfile(entry["command"]), entry["command"]
-            assert os.path.isfile(entry["args"][0]), entry["args"]
+        assert res["clients"][0]["changed"] is True, res
+        with open(os.path.join(tmp, ".cursor", "mcp.json")) as fh:
+            cfg = json.load(fh)
+        entry = cfg["mcpServers"]["omnirecon"]
+        assert os.path.isfile(entry["command"]), entry
+        assert os.path.isfile(entry["args"][0]), entry
+    finally:
+        if old_home is None:
+            os.environ.pop("HOME", None)
         else:
-            assert "omnirecon" in content, (client, content)
+            os.environ["HOME"] = old_home

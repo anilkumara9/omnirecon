@@ -43,8 +43,13 @@ echo Verifying install...
 if errorlevel 1 ( echo ERROR: verification failed. & exit /b 1 )
 
 echo.
-echo Done. Next: configure your agent with zero path mistakes:
-echo   %PY% -m omnirecon.cli setup cursor
-echo   (or: claude-code, codex, windsurf, zed, generic)
-echo Then ask your agent: "Reverse-engineer https://example.com"
+echo Done. Next: configure your agent automatically (no manual JSON editing):
+if not "%~1"=="" (
+    "%PY%" -m omnirecon.cli setup %~1
+    echo Then restart your agent and ask: "Reverse-engineer https://example.com"
+) else (
+    echo   %PY% -m omnirecon.cli setup auto
+    echo   ^(or: install.bat claude-code ^| codex ^| cursor ^| windsurf ^| zed ^| generic^)
+    echo Then ask your agent: "Reverse-engineer https://example.com"
+)
 endlocal

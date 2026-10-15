@@ -34,12 +34,13 @@ Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 other MCP-compatible agent or IDE.
 
 ```bash
-./install.sh   # one command: venv + deps + Chromium + verify
+curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh | bash -s -- --client auto
+# one command: clone + venv + deps + Chromium + agent config. Then restart your agent.
 ```
 
 ```bash
-# then connect your agent with zero path mistakes:
-.venv/bin/python -m omnirecon.cli setup claude-code   # or cursor, codex, windsurf, zed
+# then connect your agent (writes the config for you, no manual JSON):
+.venv/bin/python -m omnirecon.cli setup auto   # or claude-code, codex, cursor, windsurf, zed
 ```
 
 Then ask your agent: *"Reverse-engineer https://example.com — explain how it
@@ -212,19 +213,33 @@ recon_authenticate(session_id, login_url, username, password)
 
 Requirements: Python 3.10+, no Node.js.
 
-**One command:**
+**One command — installs everything and configures your agent:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anilkumara9/omnirecon/main/install.sh \
+  | bash -s -- --client auto
+```
+
+That single command clones the repo, creates `.venv/`, installs dependencies,
+downloads Playwright's Chromium (~300MB, skipped if already present), verifies
+the install, **and writes the MCP config for every agent it finds**
+(Claude Code, Codex, Cursor, Windsurf, Zed) — no manual JSON editing. Then just
+restart your agent and ask it: *"Reverse-engineer https://example.com"*.
+
+Prefer the explicit steps?
 
 ```bash
 git clone https://github.com/anilkumara9/omnirecon.git
 cd omnirecon
-./install.sh        # Linux / macOS
+./install.sh --client auto   # Linux / macOS
 ```
 
-Windows: run `install.bat` instead (same steps: venv + deps + Chromium + verify).
+Windows: run `install.bat auto` instead (same steps: venv + deps + Chromium + verify + agent config).
 
-This checks your Python, creates `.venv/`, installs dependencies, downloads
-Playwright's Chromium (~300MB, skipped if already present), and verifies the
-install. Safe to re-run — steps that are already done are skipped.
+`--client` accepts `claude-code`, `codex`, `cursor`, `windsurf`, `zed`,
+`generic`, or `auto` (detect everything installed). Safe to re-run — steps
+that are already done are skipped, and existing configs are merged, never
+duplicated or destroyed (unparseable files are backed up first).
 
 <details>
 <summary>Manual install (if you prefer each step explicit)</summary>
@@ -255,25 +270,29 @@ from your terminal instead, use the CLI (same 24 tools):
 OmniRecon is a **stdio MCP server**: one Python process, no ports, no daemons.
 Restart the agent/IDE after registering.
 
-**Easiest — zero path mistakes:**
+**Easiest — the command writes the config for you:**
 
 ```bash
-.venv/bin/python -m omnirecon.cli setup cursor
-# or: claude-code, codex, windsurf, zed, generic
+.venv/bin/python -m omnirecon.cli setup auto
+# or pick one: claude-code, codex, cursor, windsurf, zed, generic
+# --dry-run previews without writing; everything is idempotent
 ```
 
-This auto-detects your venv Python and `server.py` and prints the exact config
-(or the exact command) for your client — no `/path/to/...` to get wrong.
+This auto-detects your venv Python and `server.py`, then writes/merges the
+config into the right place for each client — no `/path/to/...` to get wrong,
+no manual JSON editing. Existing configs are merged, never duplicated;
+unparseable files are backed up (`.omnirecon.bak`) rather than destroyed.
 
-Example output for Claude Code — just run the command it gives you:
+Example output:
 
 ```json
 {
-  "action": "run",
-  "command": ["claude", "mcp", "add", "omnirecon", "--",
-              "/home/you/omnirecon/.venv/bin/python",
-              "/home/you/omnirecon/omnirecon/server.py"],
-  "note": "Run this command to register OmniRecon with Claude Code."
+  "ok": true,
+  "clients": [
+    {"client": "cursor", "changed": true, "note": "written",
+     "path": "/home/you/.cursor/mcp.json", "restart": "restart cursor"}
+  ],
+  "summary": "1/1 client(s) configured"
 }
 ```
 
@@ -491,13 +510,14 @@ in [`benchmarks/results/`](benchmarks/results/).
 ```
 omnirecon/            the 22-module package (server, evidence, session,
                       browser_engine, source_intel, assets, spec, …)
-tests/                pytest suite (167 tests)
+tests/                pytest suite (185 tests)
 skills/omnirecon/     agent skill doc: workflow, routing table, hard rules
 examples/             committed teardown sessions (proof, not docs)
 scripts/proxy_relay.py  dumb TCP relay for sandboxes whose egress proxy
                       breaks Chromium (see Troubleshooting)
 benchmarks/           hand-annotated fixture + runner + measured results
-install.sh            one-command installer (venv + deps + Chromium + verify)
+install.sh            one-command installer (clone + venv + deps + Chromium + agent config)
+install.bat           Windows one-command installer (same steps)
 requirements.txt      pinned dependencies (mcp<2)
 .github/workflows/    CI: full pytest suite on every push/PR
 CHANGELOG.md          version history
@@ -511,7 +531,7 @@ REA_INSPECTION.md     REA teardown and the evidence-based comparison
 
 - **Agent doesn't see the tools** — the usual causes, in order: (1) you used
   system Python instead of `.venv/bin/python` — re-run
-  `.venv/bin/python -m omnirecon.cli setup <client>` and use its exact output;
+  `.venv/bin/python -m omnirecon.cli setup <client>` and check its output;
   (2) you forgot to restart the agent/IDE after registering; (3) the JSON has
   a typo — validate it with `python -m json.tool <config-file>`.
 - **`setup` says python not found** — run `./install.sh` (or `install.bat`)
