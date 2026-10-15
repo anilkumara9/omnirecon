@@ -103,33 +103,34 @@ the appropriate engine.
 
 ## See it in action
 
-A 60-second session against a live target (via the CLI — agents get the same
-through MCP):
+One call. Full pipeline. Build-ready blueprint:
 
 ```bash
-$ .venv/bin/python -m omnirecon.cli recon-start https://example.com --mode fast
+$ .venv/bin/python -m omnirecon.cli auto-pilot https://example.com --depth quick
 {
   "session_id": "a1b2c3d4",
-  "target": "https://example.com",
-  "rapid_report": {
-    "tech": ["nginx"],
-    "title": "Example Domain",
-    "findings_seeded": 8
-  }
+  "depth": "quick",
+  "elapsed_s": 87.3,
+  "tools_run": ["recon_start", "recon_discover_routes", "recon_inspect_page",
+                "recon_capture_network", "recon_analyze_ui",
+                "recon_generate_spec"],
+  "evidence": {"total": 42, "by_classification": {"OBSERVED": 38}},
+  "manifest": {"build_tasks": 8, "research_tasks": 3},
+  "next_steps": "Build 8 tasks in manifest['build_tasks'] order..."
 }
-
-$ .venv/bin/python -m omnirecon.cli recon-discover-routes a1b2c3d4 --max-pages 20
-{ "routes_found": 12, "api_endpoints": 5, "note": "JS bundles mined for endpoints" }
-
-$ .venv/bin/python -m omnirecon.cli recon-generate-spec a1b2c3d4
-{ "sections": 15, "manifest": "sessions/a1b2c3d4/tasks.json",
-  "note": "every claim cites the finding ID that proves it" }
 ```
 
-Or hand the whole thing to your agent: *"Reverse-engineer this platform and
-give me a rebuild plan."* It drives the 21 tools, consults the evidence
-ledger, and returns the blueprint. Try it on your own stack — that's the demo
-that converts skeptics.
+Or hand it to your agent: *"Reverse-engineer this platform and give me a
+rebuild plan."* It calls `recon_auto_pilot` once and gets the blueprint.
+
+**Teardown gallery:** [`examples/teardowns/`](examples/teardowns/) —
+complete reverse-engineering blueprints of real targets. Every claim cites
+its evidence.
+
+| Target | Findings | Rebuild score | Teardown |
+|---|---|---|---|
+| Acme Metrics (demo SaaS) | 36 | — | [teardown-acme-metrics](examples/teardown-acme-metrics/) |
+| Linear | — | — | [teardown-linear](examples/teardown-linear/) |
 
 **Full worked example:** [`examples/teardown-acme-metrics/`](examples/teardown-acme-metrics/)
 — a complete session (evidence ledger, 15-section spec, design tokens,
