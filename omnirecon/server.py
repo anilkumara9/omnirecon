@@ -1535,6 +1535,74 @@ def recon_deauthenticate(session_id: Annotated[str, Field(description="Session I
 
 
 @mcp.tool()
+def recon_mock_network(
+    session_id: Annotated[str, Field(description="Session ID returned by recon_start")],
+    url: Annotated[str, Field(description="Full page URL to load and mock network on")],
+    scenario: Annotated[str, Field(description="Edge state to simulate: 'api_down' (500s), 'slow' (3s delay), 'empty' (empty lists), 'unauthorized' (401s)")] = "api_down",
+    url_pattern: Annotated[str, Field(description="Glob pattern for requests to mock, e.g. '**/api/*'")] = "**/api/*",
+) -> dict:
+    """Mock network responses to reveal edge-state UI. Real apps contain 2-3x
+    more UI in error/empty/loading states than the happy path — this is how
+    you see it. Loads the page, applies the mock scenario, captures the
+    degraded UI (screenshot + DOM diff vs normal)."""
+    mgr, err = _session_manager()
+    if err:
+        return err
+    session, serr = _get_session(mgr, session_id)
+    if serr:
+        return serr
+    if not url or not url.strip():
+        return _err("url is required", "invalid_input",
+                    "pass the full page URL as the 'url' argument")
+    url = url.strip()
+
+    bmod, berr = _lane("browser_engine")
+    if berr or not hasattr(bmod, "OwnedBrowser"):
+        return _err("browser engine unavailable", "internal",
+                    "mock_network needs the Playwright browser")
+
+    try:
+        browser = _open_browser(bmod)
+        try:
+            browser, page = _goto_resilient(browser, bmod, url,
+                                            session_id, mgr)
+            pid = page.get("page_id")
+            # Baseline: normal screenshot
+            artifacts_dir = str(SESSIONS_ROOT / session_id / "artifacts")
+            os.makedirs(artifacts_dir, exist_ok=True)
+            baseline = browser.screenshot(pid, artifacts_dir=artifacts_dir)
+            # Apply mock scenario and reload
+            mock_result = browser.mock_scenario(pid, scenario, url_pattern)
+            browser.goto(url, pid)
+            # Wait for the app to react to mocked responses
+            import time as _t
+            _t.sleep(3)
+            mocked_shot = browser.screenshot(pid, artifacts_dir=artifacts_dir)
+            snap = browser.snapshot(pid)
+            browser.clear_intercepts(pid)
+        finally:
+            browser.shutdown()
+    except Exception as e:
+        return _err("mock_network failed", "internal", str(e)[:300])
+
+    items = [_finding(
+        "workflow", f"Edge state: {scenario} on {url}",
+        f"Mocked scenario '{scenario}' for {url_pattern}. "
+        f"Compare baseline {baseline} vs mocked {mocked_shot} to see "
+        f"error/empty/loading UI. Controls after mock: "
+        f"{len(snap.get('controls', []))}.",
+        "OBSERVED", 0.9, "network mocked in owned browser; UI re-rendered",
+        sources=[url], route=url, engine="rendered",
+        limitations="mocked responses are synthetic; real failure modes may differ")]
+    ids = _ledger_add(session_id, mgr, items)
+    return {"scenario": scenario, "url": url,
+            "baseline_screenshot": baseline,
+            "mocked_screenshot": mocked_shot,
+            "finding_ids": ids,
+            "note": "Compare the two screenshots to see edge-state UI"}
+
+
+@mcp.tool()
 def recon_auto_pilot(
     target: Annotated[str, Field(description="Target to reverse-engineer: full URL (https://...), OpenAPI doc URL, local repo path, or artifact file path")],
     depth: Annotated[str, Field(description="How deep to go: 'quick' (~2 min, rapid recon + top pages), 'standard' (~5 min, + network/UI/sourcemaps), 'deep' (~15 min, + all pages + endpoint probing)")] = "standard",
@@ -1712,6 +1780,11 @@ def recon_auto_pilot(
     # Step 5: endpoint probing (standard/deep only)
     if depth != "quick":
         _safe("recon_probe_endpoints", recon_probe_endpoints, sid)
+
+    # Step 5b: edge-state mocking (deep only) — reveal error/empty UI
+    if depth == "deep" and main_url:
+        _safe("recon_mock_network", recon_mock_network, sid, main_url,
+              "api_down")
 
     # Step 6: consistency check + spec
     _safe("recon_verify_consistency", recon_verify_consistency, sid)

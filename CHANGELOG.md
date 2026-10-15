@@ -2,6 +2,14 @@
 
 All notable changes to OmniRecon. Dates are commit dates (UTC).
 
+## v2.1.0 — Edge States (2026-10-15)
+
+**See the UI nobody crawls.** `recon_mock_network` mocks API responses
+(`api_down`, `slow`, `empty`, `unauthorized`) and captures how the UI
+degrades — error screens, skeletons, empty states. Real apps contain 2-3x
+more UI in edge states than the happy path. Autopilot `deep` mode now runs
+it automatically. 23 tools.
+
 ## v2.0.0 — Autopilot (2026-10-15)
 
 **One tool call reverse-engineers anything.** `recon_auto_pilot(target)` runs

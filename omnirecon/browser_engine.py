@@ -730,6 +730,77 @@ class AsyncOwnedBrowser:
 
     # -- network -----------------------------------------------------------
 
+    # -- request interception + mocking ------------------------------------
+    # Time-travel the app into edge states: mock API failures, slow networks,
+    # empty responses. This is how you see the 2-3x more UI that only exists
+    # in error/empty/loading states — invisible to passive crawling.
+
+    async def intercept(self, page_id: int, pattern: str, action: str,
+                        status: int = 500, body: str = "",
+                        delay_ms: int = 0) -> dict:
+        """Intercept requests matching pattern.
+
+        Actions: 'abort' (network failure), 'mock' (return status+body),
+        'delay' (slow the response by delay_ms).
+        Pattern is a glob like '**/api/*'.
+        """
+        entry = self._get_page_entry(page_id)
+        page = entry["page"]
+
+        async def _handler(route):
+            if action == "abort":
+                await route.abort()
+            elif action == "mock":
+                await route.fulfill(status=status, body=body,
+                                    content_type="application/json")
+            elif action == "delay":
+                await page.wait_for_timeout(delay_ms)
+                await route.continue_()
+            else:
+                await route.continue_()
+
+        await page.route(pattern, _handler)
+        # Track for cleanup
+        entry.setdefault("routes", []).append(pattern)
+        return {"intercepted": pattern, "action": action}
+
+    async def clear_intercepts(self, page_id: int) -> dict:
+        """Remove all registered route interceptions."""
+        entry = self._get_page_entry(page_id)
+        page = entry["page"]
+        for pattern in entry.get("routes", []):
+            try:
+                await page.unroute(pattern)
+            except Exception:
+                pass
+        entry["routes"] = []
+        return {"cleared": True}
+
+    async def mock_scenario(self, page_id: int, scenario: str,
+                            url_pattern: str = "**/api/*") -> dict:
+        """Run a predefined edge-state scenario.
+
+        Scenarios:
+        - 'api_down': all API calls return 500
+        - 'slow': API calls delayed 3s (loading states)
+        - 'empty': API calls return empty list {}
+        - 'unauthorized': API calls return 401 (expired session)
+        """
+        scenarios = {
+            "api_down": ("mock", 500, '{"error":"mocked outage"}', 0),
+            "slow": ("delay", 200, "", 3000),
+            "empty": ("mock", 200, '{"data":[]}', 0),
+            "unauthorized": ("mock", 401, '{"error":"mocked expired session"}', 0),
+        }
+        if scenario not in scenarios:
+            raise ReconError(
+                f"unknown scenario '{scenario}'; choose from "
+                f"{sorted(scenarios)}", "bad_scenario")
+        action, status, body, delay = scenarios[scenario]
+        return await self.intercept(page_id, url_pattern, action,
+                                    status=status, body=body,
+                                    delay_ms=delay)
+
     async def network_capture(self, page_id: int, duration_ms: int = 8000) -> list[dict]:
         """Reload the page and record redacted network traffic for duration_ms.
 
@@ -1138,6 +1209,21 @@ class OwnedBrowser:
 
     def network_capture(self, page_id: int, duration_ms: int = 8000) -> list[dict]:
         return self._run(self._impl.network_capture(page_id, duration_ms))
+
+    def intercept(self, page_id: int, pattern: str, action: str,
+                  status: int = 500, body: str = "",
+                  delay_ms: int = 0) -> dict:
+        return self._run(self._impl.intercept(
+            page_id, pattern, action, status=status, body=body,
+            delay_ms=delay_ms))
+
+    def clear_intercepts(self, page_id: int) -> dict:
+        return self._run(self._impl.clear_intercepts(page_id))
+
+    def mock_scenario(self, page_id: int, scenario: str,
+                      url_pattern: str = "**/api/*") -> dict:
+        return self._run(self._impl.mock_scenario(
+            page_id, scenario, url_pattern))
 
     def console_errors(self, page_id: int) -> list[str]:
         # pure local read; no loop needed

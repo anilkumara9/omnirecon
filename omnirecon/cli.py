@@ -58,6 +58,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=lambda a: SRV.recon_auto_pilot(
         a.target, a.depth, a.max_pages))
 
+    p = sub.add_parser("mock-network",
+                       help="Mock API responses to reveal edge-state UI.")
+    p.add_argument("--session", required=True)
+    p.add_argument("url", help="Page URL to load and mock")
+    p.add_argument("--scenario",
+                   choices=("api_down", "slow", "empty", "unauthorized"),
+                   default="api_down")
+    p.add_argument("--url-pattern", default="**/api/*")
+    p.set_defaults(func=lambda a: SRV.recon_mock_network(
+        a.session, a.url, a.scenario, a.url_pattern))
+
     p = sub.add_parser("recon-status", help="Stage, progress, jobs, ledger stats.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_status(a.session))

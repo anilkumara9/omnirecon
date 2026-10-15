@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
-  <img src="https://img.shields.io/badge/tools-22-green" alt="22 tools" />
+  <img src="https://img.shields.io/badge/tools-23-green" alt="23 tools" />
 </p>
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
@@ -51,7 +51,7 @@ works and give me a rebuild plan."*
 - [How it works](#how-it-works)
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
-- [The 22 tools](#the-22-tools)
+- [The 23 tools](#the-23-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
@@ -136,11 +136,12 @@ its evidence.
 — a complete session (evidence ledger, 15-section spec, design tokens,
 screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
-## The 22 tools
+## The 23 tools
 
 | Tool | What it does |
 |---|---|
 | `recon_auto_pilot` | **One-call full pipeline**: rapid recon → routes → deep inspection → network → UI → spec. Returns build-ready blueprint. |
+| `recon_mock_network` | **Edge-state revelator**: mock API failures/slowness, capture error/empty/loading UI. |
 | `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Targets: web URL, OpenAPI document URL, repo dir/git URL, APK/IPA/binary/JS-bundle file. Returns `session_id`. |
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |
