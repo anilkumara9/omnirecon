@@ -49,6 +49,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help='JSON budget object, e.g. \'{"max_pages": 40}\'')
     p.set_defaults(func=lambda a: SRV.recon_start(a.target, a.mode, a.budget))
 
+    p = sub.add_parser("auto-pilot",
+                       help="AUTOPILOT: full pipeline in one call — recon → inspect → spec.")
+    p.add_argument("target", help="URL (https://…) or local repo path")
+    p.add_argument("--depth", choices=("quick", "standard", "deep"),
+                   default="standard")
+    p.add_argument("--max-pages", type=int, default=5)
+    p.set_defaults(func=lambda a: SRV.recon_auto_pilot(
+        a.target, a.depth, a.max_pages))
+
     p = sub.add_parser("recon-status", help="Stage, progress, jobs, ledger stats.")
     _add_session_arg(p)
     p.set_defaults(func=lambda a: SRV.recon_status(a.session))

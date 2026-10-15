@@ -11,6 +11,19 @@ Turn a target URL or local repository into an actionable technical blueprint:
 what the platform is built with, how its routes/components/APIs fit together,
 how its key workflows behave, and a prioritized plan to rebuild it.
 
+## Start here: autopilot (one call)
+
+**`recon_auto_pilot(target, depth="standard")` runs the entire pipeline in one
+call** — rapid recon → route discovery → deep page inspection → network
+capture → UI analysis → sourcemaps → endpoint probing → spec generation — and
+returns a build-ready blueprint with `spec.sections` and a
+`manifest` (`build_tasks` + `research_tasks`). Each step is isolated: one
+failing tool never kills the pipeline. Prefer this over orchestrating the
+individual tools below.
+
+Depths: `quick` (~2 min), `standard` (~5 min), `deep` (~15 min).
+CLI: `omnirecon auto-pilot https://target.com --depth standard`.
+
 ## When to use OmniRecon vs REA
 
 OmniRecon is the universal front door. Every target below enters through

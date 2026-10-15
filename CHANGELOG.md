@@ -2,6 +2,23 @@
 
 All notable changes to OmniRecon. Dates are commit dates (UTC).
 
+## v2.0.0 — Autopilot (2026-10-15)
+
+**One tool call reverse-engineers anything.** `recon_auto_pilot(target)` runs
+the entire pipeline automatically — rapid recon → route discovery → deep page
+inspection → network capture → UI analysis → sourcemaps → endpoint probing →
+spec generation — and returns a build-ready reconstruction blueprint with a
+task manifest. Each step is isolated: one failing tool never kills the
+pipeline. CLI: `omnirecon auto-pilot https://target.com`.
+
+- 22 tools (was 21). All parameters carry descriptions; tool descriptions
+  state sequencing; all error hints filled.
+- `tasks.json` split into `build_tasks` / `research_tasks` with concrete
+  acceptance criteria; API inventory deduplicated; test plan parameterized.
+- RE-depth: sourcemap `sourcesContent` capture, browser storage snapshot,
+  SPA endpoint patterns (tRPC/React Query/XHR/beacon), 429 rate-limit mining,
+  DEX string-entropy obfuscation signal.
+
 ## Unreleased
 
 - Test suite converted to pytest-native (`setup_module`/`teardown_module`);

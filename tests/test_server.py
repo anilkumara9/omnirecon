@@ -30,11 +30,12 @@ EXPECTED_TOOLS = [
     "recon_get_graph", "recon_get_evidence", "recon_generate_spec",
     "recon_compare_build", "recon_export_report", "recon_cancel",
     "recon_authenticate", "recon_deauthenticate",
-    "recon_analyze_ui",
+    "recon_analyze_ui", "recon_auto_pilot",
 ]
 
 
 def test_all_21_tools_registered():
+    # 22 tools as of v2.0 (autopilot added); name kept for history
     tools = asyncio.run(SRV.mcp.list_tools())
     names = sorted(t.name for t in tools)
     assert names == sorted(EXPECTED_TOOLS), f"got {names}"

@@ -12,10 +12,16 @@
   <img src="https://img.shields.io/github/license/anilkumara9/omnirecon" alt="MIT license" />
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/MCP-compatible-purple" alt="MCP compatible" />
-  <img src="https://img.shields.io/badge/tools-21-green" alt="21 tools" />
+  <img src="https://img.shields.io/badge/tools-22-green" alt="22 tools" />
 </p>
 
 <p align="center"><b>Reverse-engineering infrastructure for AI coding agents.</b></p>
+
+<p align="center"><b>NEW in v2.0: one tool call reverse-engineers anything.</b><br/>
+<code>recon_auto_pilot("https://target.com")</code> runs the full pipeline —
+rapid recon, route discovery, deep browser inspection, network capture, UI
+analysis, endpoint probing — and returns a build-ready blueprint. No
+orchestration needed.</p>
 
 <p align="center">Point it at a URL, an API definition, a codebase, or a shipped binary —<br/>it runs an autonomous recon pipeline (rapid fingerprinting, a real headless
 browser that crawls routes, clicks through workflows and captures live network
@@ -45,7 +51,7 @@ works and give me a rebuild plan."*
 - [How it works](#how-it-works)
 - [Comparison with alternatives](#comparison-with-alternatives)
 - [See it in action](#see-it-in-action)
-- [The 21 tools](#the-21-tools)
+- [The 22 tools](#the-21-tools)
 - [UI reverse engineering](#ui-reverse-engineering-designer-grade)
 - [Authenticated recon](#authenticated-recon-behind-the-login)
 - [Installation](#installation)
@@ -129,10 +135,11 @@ that converts skeptics.
 — a complete session (evidence ledger, 15-section spec, design tokens,
 screenshots, dependency graph) against a demo SaaS site, committed as proof.
 
-## The 21 tools
+## The 22 tools
 
 | Tool | What it does |
 |---|---|
+| `recon_auto_pilot` | **One-call full pipeline**: rapid recon → routes → deep inspection → network → UI → spec. Returns build-ready blueprint. |
 | `recon_start` | Validate target + rapid recon (tech, title, forms, DNS). Targets: web URL, OpenAPI document URL, repo dir/git URL, APK/IPA/binary/JS-bundle file. Returns `session_id`. |
 | `recon_status` | Stage, progress, background jobs, ledger stats. |
 | `recon_discover_routes` | Crawl internal routes; extracts API endpoints from page text **and** JS bundles. |

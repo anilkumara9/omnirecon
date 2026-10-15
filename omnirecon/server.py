@@ -1497,5 +1497,118 @@ def recon_deauthenticate(session_id: Annotated[str, Field(description="Session I
     return {"session_id": session_id, "cookies_cleared": cleared}
 
 
+@mcp.tool()
+def recon_auto_pilot(
+    target: Annotated[str, Field(description="Target to reverse-engineer: full URL (https://...), OpenAPI doc URL, local repo path, or artifact file path")],
+    depth: Annotated[str, Field(description="How deep to go: 'quick' (~2 min, rapid recon + top pages), 'standard' (~5 min, + network/UI/sourcemaps), 'deep' (~15 min, + all pages + endpoint probing)")] = "standard",
+    max_pages: Annotated[int, Field(description="Max pages for deep browser inspection; 5 covers most sites")] = 5,
+) -> dict:
+    """AUTOPILOT — reverse-engineer a target with ONE call. Runs the full
+    pipeline automatically (rapid recon → route discovery → deep page
+    inspection → network capture → UI analysis → sourcemaps → endpoint
+    probing → spec generation) and returns a build-ready reconstruction
+    blueprint. Each step is isolated: one failing tool never kills the
+    pipeline. Use this instead of orchestrating the individual tools."""
+    import time
+    t0 = time.time()
+    ran, failed = [], []
+
+    def _safe(name, fn, *args, **kwargs):
+        try:
+            out = fn(*args, **kwargs)
+            if isinstance(out, dict) and out.get("error"):
+                failed.append({"tool": name, "error": out.get("error", "")[:200]})
+                return None
+            ran.append(name)
+            return out
+        except Exception as e:
+            failed.append({"tool": name, "error": str(e)[:200]})
+            return None
+
+    # Step 1: start session (rapid recon)
+    start = _safe("recon_start", recon_start, target,
+                  "thorough" if depth == "deep" else "fast")
+    if not start or not start.get("session_id"):
+        return {"error": "autopilot failed at recon_start",
+                "detail": failed, "tools_run": ran}
+    sid = start["session_id"]
+
+    # Step 2: discover routes
+    disc = _safe("recon_discover_routes", recon_discover_routes, sid,
+                 max_pages=max_pages * 8 if depth == "deep" else 40,
+                 max_depth=3)
+    # Collect candidate page URLs from the ledger (route findings)
+    ev = _safe("recon_get_evidence", recon_get_evidence, sid, type="route")
+    page_urls = []
+    if ev:
+        for f in ev.get("findings", [])[: max_pages * 2]:
+            u = f.get("route") or f.get("url")
+            if u and u not in page_urls:
+                page_urls.append(u)
+    if not page_urls:
+        # fall back to the target itself
+        page_urls = [target] if target.startswith("http") else []
+    main_url = page_urls[0] if page_urls else ""
+
+    # Step 3: deep-inspect top pages (browser)
+    inspect_n = {"quick": 2, "standard": max_pages, "deep": max_pages * 2}[depth]
+    for url in page_urls[:inspect_n]:
+        _safe("recon_inspect_page", recon_inspect_page, sid, url)
+
+    # Step 4: network + UI + assets on the main page
+    if main_url:
+        _safe("recon_capture_network", recon_capture_network, sid, main_url)
+        _safe("recon_analyze_ui", recon_analyze_ui, sid, main_url)
+        _safe("recon_extract_assets", recon_extract_assets, sid, main_url)
+        if depth != "quick":
+            _safe("recon_recover_sourcemaps", recon_recover_sourcemaps,
+                   sid, main_url)
+
+    # Step 5: endpoint probing (standard/deep only)
+    if depth != "quick":
+        _safe("recon_probe_endpoints", recon_probe_endpoints, sid)
+
+    # Step 6: consistency check + spec
+    _safe("recon_verify_consistency", recon_verify_consistency, sid)
+    spec_out = _safe("recon_generate_spec", recon_generate_spec, sid)
+
+    elapsed = round(time.time() - t0, 1)
+    # Evidence + manifest summary for the agent
+    ev2 = recon_get_evidence(sid)
+    findings = ev2.get("findings", []) if isinstance(ev2, dict) else []
+    by_class = {}
+    for f in findings:
+        c = f.get("classification", "?")
+        by_class[c] = by_class.get(c, 0) + 1
+
+    result = {
+        "session_id": sid,
+        "target": target,
+        "depth": depth,
+        "elapsed_s": elapsed,
+        "tools_run": ran,
+        "tools_failed": failed,
+        "evidence": {"total": len(findings), "by_classification": by_class},
+    }
+    if spec_out:
+        result["spec"] = spec_out.get("sections", {})
+        result["manifest"] = spec_out.get("manifest", {})
+        result["manifest_path"] = spec_out.get("manifest_path", "")
+        # Build-ready summary: what the agent should do next
+        manifest = spec_out.get("manifest", {}) or {}
+        build = manifest.get("build_tasks", [])
+        research = manifest.get("research_tasks", [])
+        result["next_steps"] = (
+            f"Build {len(build)} tasks in manifest['build_tasks'] order "
+            f"(routes → endpoints → components → workflows). "
+            f"{len(research)} research gaps in manifest['research_tasks'] — "
+            f"resolve BLOCKED/UNVERIFIED items before treating the spec as complete. "
+            f"Full blueprint in spec.sections."
+        )
+    else:
+        result["error"] = "spec generation failed"
+    return result
+
+
 if __name__ == "__main__":
     mcp.run()
